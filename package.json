@@ -1,0 +1,18 @@
+{
+  "name": "fishing-port-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "渔港进出港登记系统 - 全栈应用",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "start:backend": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "docker:build": "docker build -t fishing-port-system .",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down"
+  }
+}
