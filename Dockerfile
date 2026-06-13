@@ -1,45 +1,36 @@
-FROM node:20-alpine AS builder-backend
-
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci --no-audit --no-fund
-
-COPY backend/tsconfig.json ./
-COPY backend/src ./src
-RUN npm run build
-
-
-FROM node:20-alpine AS builder-frontend
-
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --no-audit --no-fund
-
-COPY frontend/tsconfig*.json ./
-COPY frontend/vite.config.ts ./
-COPY frontend/tailwind.config.js ./
-COPY frontend/postcss.config.js ./
-COPY frontend/index.html ./
-COPY frontend/src ./src
-RUN npm run build
-
-
-FROM node:20-alpine AS runtime
-
-ENV NODE_ENV=production
-ENV PORT=41234
-ENV FRONTEND_URL=*
-
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY backend/package*.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
 
-COPY --from=builder-backend /app/backend/dist ./dist
-COPY --from=builder-backend /app/backend/data ./data
-COPY --from=builder-frontend /app/frontend/dist ./public
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY --from=builder /app/dist ./dist
+COPY api ./api
+COPY backend ./backend
+COPY public ./public
+COPY index.html ./
+COPY vite.config.ts ./
+COPY tsconfig.json ./
+COPY postcss.config.js ./
+COPY tailwind.config.js ./
+COPY nodemon.json ./
 
-RUN mkdir -p /app/data && chmod -R 777 /app/data
+RUN mkdir -p backend/data
 
-EXPOSE 41234
+EXPOSE 3001 4173
 
-CMD ["node", "dist/server.js"]
+COPY <<'EOF' /app/start.sh
+#!/bin/sh
+cd /app
+npx tsx api/server.ts &
+npx vite preview --host 0.0.0.0 --port 4173 &
+wait
+EOF
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]

@@ -1,25 +1,12 @@
 services:
   fishing-port:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fishing-port-app
-    restart: unless-stopped
+    build: .
     ports:
-      - "41234:41234"
-    environment:
-      - PORT=41234
-      - NODE_ENV=production
-      - FRONTEND_URL=*
+      - "3000:4173"
+      - "3001:3001"
     volumes:
-      - fishing-port-data:/app/data
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:41234/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      - port-data:/app/backend/data
+    restart: unless-stopped
 
 volumes:
-  fishing-port-data:
-    name: fishing-port-data
+  port-data:
