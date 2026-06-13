@@ -254,28 +254,43 @@ router.post('/:id/withdraw', async (req: Request, res: Response): Promise<void> 
 router.post('/:id/review', async (req: Request, res: Response): Promise<void> => {
   try {
     const db = await getDb()
-    const plan = getRow(db, 'SELECT status, ship_id FROM plans WHERE id = ?', [req.params.id])
+    const plan = getRow(db, 'SELECT status, ship_id, crew_confirmed FROM plans WHERE id = ?', [req.params.id])
     if (!plan) {
       res.status(404).json({ success: false, error: '计划不存在' })
       return
     }
-    if (plan.status !== 'submitted') {
-      res.status(400).json({ success: false, error: '仅已提交状态可复核' })
+    if (plan.status !== 'submitted' && plan.status !== 'reviewing') {
+      res.status(400).json({ success: false, error: '仅已提交或复核中状态可复核' })
       return
     }
 
-    const { action, comment } = req.body
+    const { action, approve, comment, crewConfirmed } = req.body
     const operatorId = (req.headers['x-user-id'] as string) || 'u2'
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
-    if (action === 'reject') {
-      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, updated_at = ? WHERE id = ?", [comment || '值班员打回', now, req.params.id])
+    const isRejected = action === 'reject' || approve === false
+
+    if (isRejected) {
+      const rejectReason = comment || '值班员打回'
+      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, updated_at = ? WHERE id = ?", [rejectReason, now, req.params.id])
       run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        [genId(), req.params.id, 'duty_review', 'rejected', operatorId, 'duty_officer', comment || '船员名单未确认', now])
+        [genId(), req.params.id, 'duty_review', 'rejected', operatorId, 'duty_officer', rejectReason, now])
     } else {
-      run(db, "UPDATE plans SET status = 'reviewing', updated_at = ? WHERE id = ?", [now, req.params.id])
+      const crewRows = all(db, 'SELECT crew_id FROM plan_crew WHERE plan_id = ?', [req.params.id])
+      if (crewRows.length === 0) {
+        res.status(400).json({ success: false, error: '船员名单为空，无法通过复核' })
+        return
+      }
+
+      const isCrewConfirmed = crewConfirmed === true || (plan.crew_confirmed as number) === 1
+      if (!isCrewConfirmed) {
+        res.status(400).json({ success: false, error: '船员名单未确认，无法通过复核' })
+        return
+      }
+
+      run(db, "UPDATE plans SET status = 'reviewing', crew_confirmed = 1, updated_at = ? WHERE id = ?", [now, req.params.id])
       run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        [genId(), req.params.id, 'duty_review', 'approved', operatorId, 'duty_officer', comment || '复核通过', now])
+        [genId(), req.params.id, 'duty_review', 'approved', operatorId, 'duty_officer', comment || '船员名单核验通过，复核通过', now])
     }
 
     persist(db)
@@ -294,8 +309,8 @@ router.post('/:id/inspect', async (req: Request, res: Response): Promise<void> =
       res.status(404).json({ success: false, error: '计划不存在' })
       return
     }
-    if (plan.status !== 'reviewing') {
-      res.status(400).json({ success: false, error: '仅复核中状态可抽查' })
+    if (plan.status !== 'reviewing' && plan.status !== 'inspecting') {
+      res.status(400).json({ success: false, error: '仅复核中或抽查中状态可抽查' })
       return
     }
 
@@ -305,14 +320,22 @@ router.post('/:id/inspect', async (req: Request, res: Response): Promise<void> =
       return
     }
 
-    const { action, comment } = req.body
+    if ((plan.crew_confirmed as number) !== 1) {
+      res.status(400).json({ success: false, error: '船员名单未确认，不得进入监管抽查流程' })
+      return
+    }
+
+    const { action, approve, comment } = req.body
     const operatorId = (req.headers['x-user-id'] as string) || 'u3'
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
-    if (action === 'reject') {
-      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, updated_at = ? WHERE id = ?", [comment || '监管员打回', now, req.params.id])
+    const isRejected = action === 'reject' || approve === false
+
+    if (isRejected) {
+      const rejectReason = comment || '监管员打回'
+      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, updated_at = ? WHERE id = ?", [rejectReason, now, req.params.id])
       run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        [genId(), req.params.id, 'supervisor_inspect', 'rejected', operatorId, 'supervisor', comment || '抽查不通过', now])
+        [genId(), req.params.id, 'supervisor_inspect', 'rejected', operatorId, 'supervisor', rejectReason, now])
     } else {
       run(db, "UPDATE plans SET status = 'inspecting', updated_at = ? WHERE id = ?", [now, req.params.id])
       run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -336,9 +359,35 @@ router.post('/:id/release', async (req: Request, res: Response): Promise<void> =
       return
     }
 
+    if ((plan.crew_confirmed as number) !== 1) {
+      res.status(400).json({ success: false, error: '船员名单未确认，不得放行' })
+      return
+    }
+
+    const reviewRecord = getRow(db, 
+      "SELECT id FROM approval_records WHERE plan_id = ? AND node = 'duty_review' AND action = 'approved' ORDER BY created_at DESC LIMIT 1",
+      [req.params.id]
+    )
+    if (!reviewRecord) {
+      res.status(400).json({ success: false, error: '值班复核未通过，不得放行' })
+      return
+    }
+
     const planStatus = plan.status as string
     const needInspect = (plan.route_risk_level as string) === 'high' || (plan.danger_goods_declared as number) === 1
     const validStatus = needInspect ? 'inspecting' : 'reviewing'
+
+    if (needInspect) {
+      const inspectRecord = getRow(db,
+        "SELECT id FROM approval_records WHERE plan_id = ? AND node = 'supervisor_inspect' AND action = 'approved' ORDER BY created_at DESC LIMIT 1",
+        [req.params.id]
+      )
+      if (!inspectRecord) {
+        res.status(400).json({ success: false, error: '监管抽查未通过，不得放行' })
+        return
+      }
+    }
+
     if (planStatus !== validStatus) {
       res.status(400).json({ success: false, error: `当前状态不可放行，需要状态为${validStatus}` })
       return

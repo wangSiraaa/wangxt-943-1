@@ -144,11 +144,18 @@ function initSchema(database: Database) {
       danger_goods_detail TEXT,
       fuel_remaining REAL NOT NULL DEFAULT 0,
       berth_id TEXT REFERENCES berths(id),
+      crew_confirmed INTEGER NOT NULL DEFAULT 0,
       rejection_reason TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `)
+
+  try {
+    database.run('ALTER TABLE plans ADD COLUMN crew_confirmed INTEGER NOT NULL DEFAULT 0')
+  } catch (_e) {
+    // Column may already exist in older DB
+  }
 
   database.run(`
     CREATE TABLE plan_crew (

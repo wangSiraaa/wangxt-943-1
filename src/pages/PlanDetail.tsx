@@ -102,6 +102,7 @@ export default function PlanDetail() {
   const [showRiskChangeModal, setShowRiskChangeModal] = useState(false);
   const [newRiskLevel, setNewRiskLevel] = useState("");
   const [riskChangeReason, setRiskChangeReason] = useState("");
+  const [crewConfirmed, setCrewConfirmed] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     if (!id) return;
@@ -119,6 +120,9 @@ export default function PlanDetail() {
       setPlan(planRes.success ? planRes.data : planRes);
       setRecords(recRes.success ? recRes.data : recRes);
       setRiskLogs(riskRes.success ? riskRes.data : riskRes);
+      if (planRes.success && planRes.data) {
+        setCrewConfirmed((planRes.data as any).crew_confirmed === 1);
+      }
     } catch {
       setError("加载计划详情失败");
     } finally {
@@ -213,13 +217,24 @@ export default function PlanDetail() {
           label: "审核通过",
           icon: CheckCircle,
           variant: "success",
-          onClick: () => handleAction("review", { approve: true, comment }),
+          onClick: () =>
+            handleAction("review", {
+              approve: true,
+              action: "approve",
+              comment,
+              crewConfirmed,
+            }),
         },
         {
           label: "审核驳回",
           icon: XCircle,
           variant: "danger",
-          onClick: () => handleAction("review", { approve: false, comment }),
+          onClick: () =>
+            handleAction("review", {
+              approve: false,
+              action: "reject",
+              comment,
+            }),
         }
       );
     }
@@ -233,13 +248,23 @@ export default function PlanDetail() {
           label: "抽查通过",
           icon: Shield,
           variant: "success",
-          onClick: () => handleAction("inspect", { approve: true, comment }),
+          onClick: () =>
+            handleAction("inspect", {
+              approve: true,
+              action: "approve",
+              comment,
+            }),
         },
         {
           label: "抽查驳回",
           icon: XCircle,
           variant: "danger",
-          onClick: () => handleAction("inspect", { approve: false, comment }),
+          onClick: () =>
+            handleAction("inspect", {
+              approve: false,
+              action: "reject",
+              comment,
+            }),
         }
       );
     }
@@ -503,6 +528,47 @@ export default function PlanDetail() {
                   />
                 </div>
               )}
+
+              {role === ROLE_DUTY &&
+                (status === "submitted" || status === "reviewing") && (
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="crewConfirm"
+                      checked={crewConfirmed}
+                      onChange={(e) => setCrewConfirmed(e.target.checked)}
+                      disabled={
+                        (plan as any)?.crew_confirmed === 1 || actionLoading
+                      }
+                      className="mt-1 w-4 h-4 rounded border-navy-lighter bg-navy text-port focus:ring-port"
+                    />
+                    <label
+                      htmlFor="crewConfirm"
+                      className={cn(
+                        "text-xs cursor-pointer select-none",
+                        crewConfirmed || (plan as any)?.crew_confirmed === 1
+                          ? "text-port"
+                          : "text-warning"
+                      )}
+                    >
+                      {(plan as any)?.crew_confirmed === 1
+                        ? "✓ 船员名单已核验（值班复核时确认）"
+                        : "我已核验船员名单与人员资质，确认人证一致，无黑名单人员，资质全部有效"}
+                    </label>
+                  </div>
+                )}
+
+              {crewConfirmed === false &&
+                (plan as any)?.crew_confirmed !== 1 &&
+                role === ROLE_DUTY &&
+                (status === "submitted" || status === "reviewing") && (
+                  <div className="bg-warning/10 border border-warning/30 rounded-lg px-3 py-2">
+                    <p className="text-xs text-warning-light flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      船员名单未勾选确认将无法通过复核
+                    </p>
+                  </div>
+                )}
               <div className="flex flex-wrap gap-2">
                 {actionButtons.map((btn) => (
                   <button
