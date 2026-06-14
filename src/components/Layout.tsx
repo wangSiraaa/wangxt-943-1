@@ -12,6 +12,7 @@ import {
   ChevronRight,
   LogOut,
   CloudSun,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useDataStore } from "@/store/dataStore";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/crew", icon: Users, label: "船员管理" },
   { to: "/berths", icon: Anchor, label: "泊位管理" },
   { to: "/alerts", icon: AlertTriangle, label: "告警中心" },
+  { to: "/emergency", icon: ShieldAlert, label: "应急管控" },
   { to: "/statistics", icon: BarChart3, label: "统计分析" },
 ];
 

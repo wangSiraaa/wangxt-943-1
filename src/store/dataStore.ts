@@ -118,6 +118,86 @@ export interface TrendData {
   returns: number;
 }
 
+export interface EmergencyControl {
+  id: string;
+  control_type: string;
+  title: string;
+  description: string | null;
+  affected_area: string | null;
+  start_time: string;
+  end_time: string;
+  risk_level: string;
+  status: string;
+  created_by: string;
+  created_by_name?: string;
+  ended_by: string | null;
+  ended_by_name?: string | null;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+  affected_plans?: any[];
+  affected_voyages?: any[];
+  status_logs?: StatusChangeLog[];
+}
+
+export interface VoyageChangeRequest {
+  id: string;
+  plan_id: string;
+  voyage_id: string | null;
+  request_type: 'route_change' | 'crew_change' | 'early_return';
+  old_value: string | null;
+  new_value: string;
+  change_reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  requested_by: string;
+  requested_by_name?: string;
+  reviewed_by: string | null;
+  reviewed_by_name?: string | null;
+  review_comment: string | null;
+  reviewed_at: string | null;
+  requires_recheck: number;
+  recheck_certificate: number;
+  recheck_berth: number;
+  recheck_weather: number;
+  recheck_inspection: number;
+  ship_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StatusChangeLog {
+  id: string;
+  plan_id: string | null;
+  voyage_id: string | null;
+  old_status: string;
+  new_status: string;
+  change_type: string;
+  reason: string;
+  operator_id: string;
+  operator_name?: string;
+  operator_role: string;
+  emergency_control_id: string | null;
+  control_title?: string;
+  metadata: string | null;
+  created_at: string;
+}
+
+export interface RiskAggregation {
+  critical: any[];
+  warning: any[];
+  info: any[];
+  active_controls: EmergencyControl[];
+  pending_change_requests: VoyageChangeRequest[];
+  summary: {
+    total_affected: number;
+    critical_count: number;
+    warning_count: number;
+    info_count: number;
+    active_controls_count: number;
+    pending_change_requests_count: number;
+  };
+}
+
 interface DataState {
   ships: Ship[];
   plans: Plan[];
@@ -129,6 +209,9 @@ interface DataState {
   statistics: StatisticsOverview | null;
   compliance: ComplianceStats | null;
   trends: TrendData[];
+  emergencyControls: EmergencyControl[];
+  changeRequests: VoyageChangeRequest[];
+  riskAggregation: RiskAggregation | null;
   isLoading: boolean;
   fetchShips: () => Promise<void>;
   fetchPlans: () => Promise<void>;
@@ -140,6 +223,9 @@ interface DataState {
   fetchStatistics: () => Promise<void>;
   fetchCompliance: () => Promise<void>;
   fetchTrends: () => Promise<void>;
+  fetchEmergencyControls: () => Promise<void>;
+  fetchChangeRequests: () => Promise<void>;
+  fetchRiskAggregation: () => Promise<void>;
 }
 
 export const useDataStore = create<DataState>((set) => ({
@@ -153,6 +239,9 @@ export const useDataStore = create<DataState>((set) => ({
   statistics: null,
   compliance: null,
   trends: [],
+  emergencyControls: [],
+  changeRequests: [],
+  riskAggregation: null,
   isLoading: false,
 
   fetchShips: async () => {
@@ -223,5 +312,26 @@ export const useDataStore = create<DataState>((set) => ({
       const trends = await apiRequest<TrendData[]>("/api/statistics/trends");
       set({ trends });
     } catch { console.error("获取趋势数据失败"); }
+  },
+
+  fetchEmergencyControls: async () => {
+    try {
+      const emergencyControls = await apiRequest<EmergencyControl[]>("/api/emergency?status=active");
+      set({ emergencyControls });
+    } catch { console.error("获取应急管控数据失败"); }
+  },
+
+  fetchChangeRequests: async () => {
+    try {
+      const changeRequests = await apiRequest<VoyageChangeRequest[]>("/api/change-requests?status=pending");
+      set({ changeRequests });
+    } catch { console.error("获取变更申请数据失败"); }
+  },
+
+  fetchRiskAggregation: async () => {
+    try {
+      const riskAggregation = await apiRequest<RiskAggregation>("/api/emergency/risk-aggregation");
+      set({ riskAggregation });
+    } catch { console.error("获取风险聚合数据失败"); }
   },
 }));

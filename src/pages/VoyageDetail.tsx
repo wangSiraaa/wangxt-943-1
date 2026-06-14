@@ -12,10 +12,15 @@ import {
   TrendingUp,
   FileText,
   Plus,
+  Route,
+  Users,
+  Home,
+  ClipboardList,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useDataStore, type Voyage, type Plan, type Ship as ShipType } from "@/store/dataStore";
+import { useDataStore, type Voyage, type Plan, type Ship as ShipType, type StatusChangeLog, type VoyageChangeRequest } from "@/store/dataStore";
 import StatusBadge from "@/components/StatusBadge";
 import Timeline, { type TimelineNode } from "@/components/Timeline";
 
@@ -103,6 +108,21 @@ export default function VoyageDetailPage() {
 
   const [reviewComment, setReviewComment] = useState("");
 
+  const [statusLogs, setStatusLogs] = useState<StatusChangeLog[]>([]);
+  const [changeRequests, setChangeRequests] = useState<VoyageChangeRequest[]>([]);
+  const [showChangeModal, setShowChangeModal] = useState(false);
+  const [changeForm, setChangeForm] = useState({
+    requestType: "route_change" as "route_change" | "crew_change" | "early_return",
+    newValue: "",
+    changeReason: "",
+  });
+  const [changeSubmitting, setChangeSubmitting] = useState(false);
+
+  const [showChangeReviewModal, setShowChangeReviewModal] = useState(false);
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<VoyageChangeRequest | null>(null);
+  const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
+  const [reviewChangeComment, setReviewChangeComment] = useState("");
+
   const isDutyOfficer = user?.role === "duty_officer" || user?.role === "admin";
   const isSupervisor =
     user?.role === "supervisor" || user?.role === "admin";
@@ -111,12 +131,18 @@ export default function VoyageDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const [res, apprRes, inspRes] = await Promise.all([
+      const [res, apprRes, inspRes, logRes, crRes] = await Promise.all([
         fetch(`/api/voyages/${id}`),
         fetch(`/api/voyages/${id}/approvals`).then((r) =>
           r.json().catch(() => ({ success: true, data: [] }))
         ),
         fetch(`/api/inspections?voyage_id=${id}`).then((r) =>
+          r.json().catch(() => ({ success: true, data: [] }))
+        ),
+        fetch(`/api/emergency/voyage-status-logs/${id}`).then((r) =>
+          r.json().catch(() => ({ success: true, data: [] }))
+        ),
+        fetch(`/api/change-requests?voyageId=${id}`).then((r) =>
           r.json().catch(() => ({ success: true, data: [] }))
         ),
       ]);
@@ -128,6 +154,10 @@ export default function VoyageDetailPage() {
       setApprovals(Array.isArray(apprData) ? apprData : []);
       const inspData = inspRes.success ? inspRes.data : inspRes;
       setInspections(Array.isArray(inspData) ? inspData : []);
+      const logData = logRes.success ? logRes.data : logRes;
+      setStatusLogs(Array.isArray(logData) ? logData : []);
+      const crData = crRes.success ? crRes.data : crRes;
+      setChangeRequests(Array.isArray(crData) ? crData : []);
     } catch {
       setError("获取航次详情失败");
     } finally {
@@ -364,6 +394,65 @@ export default function VoyageDetailPage() {
     }
   };
 
+  const handleSubmitChangeRequest = async () => {
+    if (!id || !voyage || !plan) return;
+    setChangeSubmitting(true);
+    try {
+      const res = await fetch("/api/change-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: plan.id,
+          voyageId: id,
+          requestType: changeForm.requestType,
+          newValue: changeForm.newValue,
+          changeReason: changeForm.changeReason,
+        }),
+      });
+      if (res.ok) {
+        setShowChangeModal(false);
+        setChangeForm({ requestType: "route_change", newValue: "", changeReason: "" });
+        fetchDetail();
+      }
+    } catch {
+      console.error("提交变更申请失败");
+    } finally {
+      setChangeSubmitting(false);
+    }
+  };
+
+  const handleReviewChangeRequest = async () => {
+    if (!selectedChangeRequest) return;
+    setChangeSubmitting(true);
+    try {
+      const res = await fetch(`/api/change-requests/${selectedChangeRequest.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: reviewAction,
+          reviewComment: reviewChangeComment,
+        }),
+      });
+      if (res.ok) {
+        setShowChangeReviewModal(false);
+        setSelectedChangeRequest(null);
+        setReviewChangeComment("");
+        fetchDetail();
+      }
+    } catch {
+      console.error("审核变更申请失败");
+    } finally {
+      setChangeSubmitting(false);
+    }
+  };
+
+  const isCaptain = user?.role === "captain" || user?.role === "admin";
+  const changeTypeLabels: Record<string, string> = {
+    route_change: "改航线",
+    crew_change: "换船员",
+    early_return: "提前返港",
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -549,6 +638,192 @@ export default function VoyageDetailPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {["active", "returning"].includes(status) && isCaptain && (
+        <div className="bg-navy-light border border-navy-lighter rounded-xl p-6 mb-6 animate-fade-in">
+          <h2 className="text-base font-medium text-gray-200 mb-4 flex items-center gap-2">
+            <Route className="w-4 h-4 text-nautical-light" />
+            航次变更申请
+          </h2>
+          <p className="text-sm text-gray-400 mb-4">
+            因应急管控或实际需要，申请改航线、换船员或提前返港
+          </p>
+          <button
+            onClick={() => setShowChangeModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-nautical hover:bg-nautical-light text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            提交变更申请
+          </button>
+        </div>
+      )}
+
+      {changeRequests.length > 0 && (
+        <div className="bg-navy-light border border-navy-lighter rounded-xl p-6 mb-6 animate-fade-in">
+          <h2 className="text-base font-medium text-gray-200 mb-4 flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-nautical-light" />
+            变更申请记录
+          </h2>
+          <div className="space-y-3">
+            {changeRequests.map((cr) => (
+              <div
+                key={cr.id}
+                className={cn(
+                  "bg-navy border rounded-lg p-3",
+                  cr.status === "pending"
+                    ? "border-yellow-600/30"
+                    : cr.status === "approved"
+                    ? "border-port/30"
+                    : "border-navy-lighter"
+                )}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-gray-200">
+                      {changeTypeLabels[cr.request_type]}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                        cr.status === "pending"
+                          ? "bg-yellow-600/20 text-yellow-400"
+                          : cr.status === "approved"
+                          ? "bg-port/20 text-port"
+                          : cr.status === "rejected"
+                          ? "bg-danger/20 text-danger"
+                          : "bg-gray-600/20 text-gray-400"
+                      )}
+                    >
+                      {cr.status === "pending"
+                        ? "待审核"
+                        : cr.status === "approved"
+                        ? "已批准"
+                        : cr.status === "rejected"
+                        ? "已驳回"
+                        : "已取消"}
+                    </span>
+                    {(cr.recheck_certificate || cr.recheck_berth || cr.recheck_weather || cr.recheck_inspection) && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning font-medium">
+                        需复核
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-500">
+                    {new Date(cr.created_at).toLocaleString("zh-CN")}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400 mb-1">
+                  原值: {cr.old_value || "-"} → 新值: {cr.new_value}
+                </div>
+                <div className="text-xs text-gray-500">
+                  原因: {cr.change_reason}
+                </div>
+                {(cr.recheck_certificate || cr.recheck_berth || cr.recheck_weather || cr.recheck_inspection) && (
+                  <div className="flex gap-2 mt-2">
+                    {cr.recheck_certificate === 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">证书待查</span>
+                    )}
+                    {cr.recheck_berth === 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">泊位待查</span>
+                    )}
+                    {cr.recheck_weather === 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">气象待查</span>
+                    )}
+                    {cr.recheck_inspection === 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">抽查待查</span>
+                    )}
+                  </div>
+                )}
+                {cr.status === "pending" && isSupervisor && (
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        setSelectedChangeRequest(cr);
+                        setReviewAction("approve");
+                        setShowChangeReviewModal(true);
+                      }}
+                      className="px-3 py-1 text-xs bg-port hover:bg-port-light text-white rounded-lg transition-colors"
+                    >
+                      批准
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedChangeRequest(cr);
+                        setReviewAction("reject");
+                        setShowChangeReviewModal(true);
+                      }}
+                      className="px-3 py-1 text-xs bg-danger hover:bg-danger-light text-white rounded-lg transition-colors"
+                    >
+                      驳回
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {statusLogs.length > 0 && (
+        <div className="bg-navy-light border border-navy-lighter rounded-xl p-6 mb-6 animate-fade-in">
+          <h2 className="text-base font-medium text-gray-200 mb-4 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-port" />
+            完整状态变更记录
+          </h2>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {statusLogs.map((log) => {
+              const changeTypeLabelsLocal: Record<string, string> = {
+                auto_reject: "自动打回",
+                manual_release: "人工放行",
+                revoke_release: "撤销放行",
+                abnormal_close: "异常关闭",
+                emergency_reject: "应急打回",
+                control_review: "管控复核",
+                control_recall: "管控召回",
+                change_request: "变更申请",
+              };
+              return (
+                <div
+                  key={log.id}
+                  className="bg-navy border border-navy-lighter rounded-lg p-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                          ["auto_reject", "emergency_reject"].includes(log.change_type)
+                            ? "bg-danger/20 text-danger"
+                            : log.change_type === "manual_release"
+                            ? "bg-port/20 text-port"
+                            : ["revoke_release", "control_recall"].includes(log.change_type)
+                            ? "bg-purple-600/20 text-purple-400"
+                            : "bg-yellow-600/20 text-yellow-400"
+                        )}
+                      >
+                        {changeTypeLabelsLocal[log.change_type] || log.change_type}
+                      </span>
+                      <span className="text-[10px] text-gray-500">
+                        {log.old_status} → {log.new_status}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-gray-600">
+                      {log.operator_name || log.operator_role} ·{" "}
+                      {new Date(log.created_at).toLocaleString("zh-CN")}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">{log.reason}</div>
+                  {log.control_title && (
+                    <div className="text-[10px] text-warning mt-1">
+                      关联管控: {log.control_title}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -746,6 +1021,152 @@ export default function VoyageDetailPage() {
             取消
           </button>
         </div>
+      </Modal>
+
+      <Modal
+        open={showChangeModal}
+        onClose={() => setShowChangeModal(false)}
+        title="提交航次变更申请"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">变更类型 *</label>
+            <div className="flex gap-2">
+              {([
+                { value: "route_change", label: "改航线", icon: Route },
+                { value: "crew_change", label: "换船员", icon: Users },
+                { value: "early_return", label: "提前返港", icon: Home },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() =>
+                    setChangeForm({ ...changeForm, requestType: opt.value })
+                  }
+                  className={cn(
+                    "flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border text-xs transition-colors",
+                    changeForm.requestType === opt.value
+                      ? "border-nautical bg-nautical/10 text-nautical-light"
+                      : "border-navy-lighter text-gray-400 hover:border-gray-500"
+                  )}
+                >
+                  <opt.icon className="w-4 h-4" />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">
+              {changeForm.requestType === "route_change"
+                ? "新航线 *"
+                : changeForm.requestType === "crew_change"
+                ? "新船员ID（逗号分隔） *"
+                : "新返港时间 *"}
+            </label>
+            {changeForm.requestType === "early_return" ? (
+              <input
+                type="datetime-local"
+                value={changeForm.newValue}
+                onChange={(e) =>
+                  setChangeForm({ ...changeForm, newValue: e.target.value })
+                }
+                className="w-full bg-navy-lighter border border-navy-lighter rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-nautical"
+              />
+            ) : (
+              <input
+                value={changeForm.newValue}
+                onChange={(e) =>
+                  setChangeForm({ ...changeForm, newValue: e.target.value })
+                }
+                className="w-full bg-navy-lighter border border-navy-lighter rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-nautical"
+                placeholder={
+                  changeForm.requestType === "route_change"
+                    ? "如：南海渔场B区航线"
+                    : "如：cr1,cr2,cr3"
+                }
+              />
+            )}
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">变更原因 *</label>
+            <textarea
+              value={changeForm.changeReason}
+              onChange={(e) =>
+                setChangeForm({ ...changeForm, changeReason: e.target.value })
+              }
+              rows={3}
+              className="w-full bg-navy-lighter border border-navy-lighter rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-nautical"
+              placeholder="说明变更原因，如应急管控要求避让..."
+            />
+          </div>
+          <div className="bg-navy-lighter/50 border border-navy-lighter rounded-lg p-3 text-xs text-gray-500">
+            <RefreshCw className="w-3 h-3 inline mr-1" />
+            提交后系统将自动检查：证书有效性、泊位可用性、气象窗口、监管抽查要求
+          </div>
+          <button
+            onClick={handleSubmitChangeRequest}
+            disabled={changeSubmitting || !changeForm.newValue || !changeForm.changeReason.trim()}
+            className="w-full px-4 py-2 bg-nautical hover:bg-nautical-light text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {changeSubmitting ? "提交中..." : "提交变更申请"}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showChangeReviewModal}
+        onClose={() => setShowChangeReviewModal(false)}
+        title={`审核变更申请 - ${reviewAction === "approve" ? "批准" : "驳回"}`}
+      >
+        {selectedChangeRequest && (
+          <div className="space-y-4">
+            <div className="bg-navy-lighter/50 border border-navy-lighter rounded-lg p-3">
+              <div className="text-xs text-gray-400 mb-1">
+                变更类型: {changeTypeLabels[selectedChangeRequest.request_type]}
+              </div>
+              <div className="text-xs text-gray-300">
+                原值: {selectedChangeRequest.old_value || "-"} → 新值: {selectedChangeRequest.new_value}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                原因: {selectedChangeRequest.change_reason}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">审核意见</label>
+              <textarea
+                value={reviewChangeComment}
+                onChange={(e) => setReviewChangeComment(e.target.value)}
+                rows={3}
+                className="w-full bg-navy-lighter border border-navy-lighter rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-nautical"
+                placeholder="输入审核意见..."
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleReviewChangeRequest}
+                disabled={changeSubmitting}
+                className={cn(
+                  "flex-1 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50",
+                  reviewAction === "approve"
+                    ? "bg-port hover:bg-port-light"
+                    : "bg-danger hover:bg-danger-light"
+                )}
+              >
+                {changeSubmitting
+                  ? "审核中..."
+                  : reviewAction === "approve"
+                  ? "确认批准"
+                  : "确认驳回"}
+              </button>
+              <button
+                onClick={() => setShowChangeReviewModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-lg transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

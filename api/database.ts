@@ -270,9 +270,115 @@ function initSchema(database: Database) {
     );
   `)
 
+  database.run(`
+    CREATE TABLE IF NOT EXISTS emergency_controls (
+      id TEXT PRIMARY KEY,
+      control_type TEXT NOT NULL CHECK(control_type IN ('temporary_ban','search_rescue','area_avoidance')),
+      title TEXT NOT NULL,
+      description TEXT,
+      affected_area TEXT,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      risk_level TEXT NOT NULL DEFAULT 'high' CHECK(risk_level IN ('low','medium','high','critical')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','ended','cancelled')),
+      created_by TEXT NOT NULL REFERENCES users(id),
+      ended_by TEXT REFERENCES users(id),
+      ended_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS status_change_logs (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT REFERENCES plans(id),
+      voyage_id TEXT REFERENCES voyages(id),
+      old_status TEXT NOT NULL,
+      new_status TEXT NOT NULL,
+      change_type TEXT NOT NULL CHECK(change_type IN ('auto_reject','manual_release','revoke_release','abnormal_close','emergency_reject','control_review','control_recall','change_request')),
+      reason TEXT NOT NULL,
+      operator_id TEXT NOT NULL REFERENCES users(id),
+      operator_role TEXT NOT NULL,
+      emergency_control_id TEXT REFERENCES emergency_controls(id),
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS voyage_change_requests (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      voyage_id TEXT REFERENCES voyages(id),
+      request_type TEXT NOT NULL CHECK(request_type IN ('route_change','crew_change','early_return')),
+      old_value TEXT,
+      new_value TEXT NOT NULL,
+      change_reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','cancelled')),
+      requested_by TEXT NOT NULL REFERENCES users(id),
+      reviewed_by TEXT REFERENCES users(id),
+      review_comment TEXT,
+      reviewed_at TEXT,
+      requires_recheck INTEGER NOT NULL DEFAULT 1,
+      recheck_certificate INTEGER DEFAULT 0,
+      recheck_berth INTEGER DEFAULT 0,
+      recheck_weather INTEGER DEFAULT 0,
+      recheck_inspection INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  try {
+    database.run('ALTER TABLE plans ADD COLUMN emergency_control_id TEXT REFERENCES emergency_controls(id)')
+  } catch (_e) {}
+  try {
+    database.run('ALTER TABLE plans ADD COLUMN last_status_change_reason TEXT')
+  } catch (_e) {}
+  try {
+    database.run('ALTER TABLE plans ADD COLUMN change_request_id TEXT REFERENCES voyage_change_requests(id)')
+  } catch (_e) {}
+
+  try {
+    database.run('ALTER TABLE voyages ADD COLUMN emergency_control_id TEXT REFERENCES emergency_controls(id)')
+  } catch (_e) {}
+  try {
+    database.run('ALTER TABLE voyages ADD COLUMN last_status_change_reason TEXT')
+  } catch (_e) {}
+  try {
+    database.run('ALTER TABLE voyages ADD COLUMN change_request_id TEXT REFERENCES voyage_change_requests(id)')
+  } catch (_e) {}
+
+  try {
+    database.run("ALTER TABLE approval_records RENAME TO approval_records_old")
+    database.run(`
+      CREATE TABLE approval_records (
+        id TEXT PRIMARY KEY,
+        plan_id TEXT NOT NULL REFERENCES plans(id),
+        node TEXT NOT NULL CHECK(node IN ('auto_check','duty_review','supervisor_inspect','dock_release','emergency_review','change_review')),
+        action TEXT NOT NULL CHECK(action IN ('approved','rejected','revoked','pending')),
+        operator_id TEXT NOT NULL REFERENCES users(id),
+        operator_role TEXT NOT NULL,
+        comment TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `)
+    database.run("INSERT INTO approval_records SELECT * FROM approval_records_old")
+    database.run("DROP TABLE approval_records_old")
+  } catch (_e) {}
+
   database.run(`CREATE INDEX IF NOT EXISTS idx_inspections_voyage ON inspections(voyage_id);`)
   database.run(`CREATE INDEX IF NOT EXISTS idx_inspections_ship ON inspections(ship_id);`)
   database.run(`CREATE INDEX IF NOT EXISTS idx_risk_logs_plan ON risk_change_logs(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_emergency_status ON emergency_controls(status);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_emergency_time ON emergency_controls(start_time, end_time);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_plan ON status_change_logs(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_voyage ON status_change_logs(voyage_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_type ON status_change_logs(change_type);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_plan ON voyage_change_requests(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_voyage ON voyage_change_requests(voyage_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_status ON voyage_change_requests(status);`)
 }
 
 function seedData(database: Database) {

@@ -17,6 +17,8 @@ import alertRoutes from './routes/alerts.js'
 import statisticsRoutes from './routes/statistics.js'
 import auditRoutes from './routes/audit.js'
 import inspectionRoutes from './routes/inspections.js'
+import emergencyRoutes from './routes/emergency.js'
+import changeRequestRoutes from './routes/changeRequests.js'
 import { getDb } from './database.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -40,6 +42,8 @@ app.use('/api/alerts', alertRoutes)
 app.use('/api/statistics', statisticsRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/inspections', inspectionRoutes)
+app.use('/api/emergency', emergencyRoutes)
+app.use('/api/change-requests', changeRequestRoutes)
 
 app.use(
   '/api/health',

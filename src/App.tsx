@@ -16,6 +16,8 @@ import BerthList from "@/pages/BerthList";
 import AlertCenter from "@/pages/AlertCenter";
 import Statistics from "@/pages/Statistics";
 import Inspections from "@/pages/Inspections";
+import EmergencyControl from "@/pages/EmergencyControl";
+import EmergencyControlDetail from "@/pages/EmergencyControlDetail";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
@@ -66,6 +68,8 @@ function AppRoutes() {
         <Route path="/inspections" element={<Inspections />} />
         <Route path="/inspections/new" element={<PlaceholderPage title="新建临检记录" />} />
         <Route path="/inspections/:id" element={<PlaceholderPage title="临检记录详情" />} />
+        <Route path="/emergency" element={<EmergencyControl />} />
+        <Route path="/emergency/:id" element={<EmergencyControlDetail />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

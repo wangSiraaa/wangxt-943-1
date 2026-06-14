@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express'
 import { getDb, all, get as getRow, run, persist } from '../database.js'
+import { logStatusChange } from './emergency.js'
 import crypto from 'crypto'
 
 const router = Router()
@@ -205,9 +206,23 @@ router.post('/:id/submit', async (req: Request, res: Response): Promise<void> =>
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
     if (!check.passed) {
+      const rejectReason = check.errors.join('; ')
       run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        [genId(), req.params.id, 'auto_check', 'rejected', 'system', 'system', check.errors.join('; '), now])
-      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, updated_at = ? WHERE id = ?", [check.errors.join('; '), now, req.params.id])
+        [genId(), req.params.id, 'auto_check', 'rejected', 'system', 'system', rejectReason, now])
+      run(db, "UPDATE plans SET status = 'rejected', rejection_reason = ?, last_status_change_reason = ?, updated_at = ? WHERE id = ?", 
+        [rejectReason, `自动打回: ${rejectReason}`, now, req.params.id])
+      
+      logStatusChange(db, {
+        planId: req.params.id,
+        oldStatus: plan.status as string,
+        newStatus: 'rejected',
+        changeType: 'auto_reject',
+        reason: `自动打回: ${rejectReason}`,
+        operatorId: 'system',
+        operatorRole: 'system',
+        metadata: { errors: check.errors }
+      })
+      
       persist(db)
       res.json({ success: false, data: { status: 'rejected', errors: check.errors } })
       return
@@ -215,7 +230,7 @@ router.post('/:id/submit', async (req: Request, res: Response): Promise<void> =>
 
     run(db, "INSERT INTO approval_records (id, plan_id, node, action, operator_id, operator_role, comment, created_at) VALUES (?,?,?,?,?,?,?,?)",
       [genId(), req.params.id, 'auto_check', 'approved', 'system', 'system', '自动校验通过', now])
-    run(db, "UPDATE plans SET status = 'submitted', updated_at = ? WHERE id = ?", [now, req.params.id])
+    run(db, "UPDATE plans SET status = 'submitted', last_status_change_reason = '自动校验通过，提交审批', updated_at = ? WHERE id = ?", [now, req.params.id])
     persist(db)
 
     const updated = getRow(db, 'SELECT * FROM plans WHERE id = ?', [req.params.id])

@@ -13,8 +13,11 @@ import {
   RefreshCw,
   FileText,
   ShieldAlert,
+  ShieldCheck,
+  Siren,
+  ArrowRight,
 } from "lucide-react";
-import { useDataStore, type AlertItem } from "@/store/dataStore";
+import { useDataStore, type AlertItem, type RiskAggregation } from "@/store/dataStore";
 import { useNavigate } from "react-router-dom";
 import AlertBanner from "@/components/AlertBanner";
 import StatusBadge from "@/components/StatusBadge";
@@ -109,6 +112,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshIntervalRef = useRef<number | null>(null);
+  const [riskAggregation, setRiskAggregation] = useState<RiskAggregation | null>(null);
 
   const refreshAll = useCallback(async () => {
     setIsRefreshing(true);
@@ -122,6 +126,12 @@ export default function Dashboard() {
         fetchAlerts(),
         fetchVoyages(),
       ]);
+      const riskRes = await fetch("/api/emergency/risk-aggregation").then((r) =>
+        r.json().catch(() => null)
+      );
+      if (riskRes?.success) {
+        setRiskAggregation(riskRes.data);
+      }
       setLastUpdated(new Date().toLocaleTimeString("zh-CN"));
     } finally {
       setIsRefreshing(false);
@@ -368,6 +378,84 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {riskAggregation && (riskAggregation.summary.total_affected > 0 || riskAggregation.summary.active_controls_count > 0) && (
+          <div className="bg-navy-light border border-warning/30 rounded-xl p-5 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <Siren className="w-4 h-4 text-warning" />
+                应急管控 · 风险聚合
+              </h3>
+              <button
+                onClick={() => navigate("/emergency")}
+                className="text-xs text-nautical-light hover:text-nautical-light/80 transition-colors flex items-center gap-1"
+              >
+                管控中心 <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {riskAggregation.summary.active_controls_count > 0 && (
+              <div className="mb-4">
+                <div className="text-xs text-warning mb-2">活跃管控</div>
+                <div className="flex gap-2 flex-wrap">
+                  {riskAggregation.active_controls.map((ctrl: any) => (
+                    <div
+                      key={ctrl.id}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs border cursor-pointer hover:opacity-80 transition-opacity",
+                        ctrl.risk_level === "critical"
+                          ? "bg-danger/10 border-danger/30 text-danger-light"
+                          : ctrl.risk_level === "high"
+                          ? "bg-warning/10 border-warning/30 text-warning"
+                          : "bg-yellow-600/10 border-yellow-600/30 text-yellow-400"
+                      )}
+                      onClick={() => navigate(`/emergency/${ctrl.id}`)}
+                    >
+                      <span className="font-medium">{ctrl.control_type === "navigation_ban" ? "禁航" : ctrl.control_type === "search_drill" ? "搜救演练" : "海域避让"}</span>
+                      <span className="ml-1 opacity-70">{ctrl.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-danger/10 border border-danger/20 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-danger">{riskAggregation.summary.critical_count}</div>
+                <div className="text-[10px] text-danger-light mt-0.5">高风险</div>
+              </div>
+              <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-warning">{riskAggregation.summary.warning_count}</div>
+                <div className="text-[10px] text-warning-light mt-0.5">中风险</div>
+              </div>
+              <div className="bg-port/10 border border-port/20 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-port">{riskAggregation.summary.info_count}</div>
+                <div className="text-[10px] text-port mt-0.5">低风险</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {riskAggregation.critical.map((p: any) => (
+                <RiskPlanRow key={p.id} plan={p} level="critical" navigate={navigate} />
+              ))}
+              {riskAggregation.warning.map((p: any) => (
+                <RiskPlanRow key={p.id} plan={p} level="warning" navigate={navigate} />
+              ))}
+              {riskAggregation.info.map((p: any) => (
+                <RiskPlanRow key={p.id} plan={p} level="info" navigate={navigate} />
+              ))}
+            </div>
+
+            {riskAggregation.summary.pending_change_requests_count > 0 && (
+              <div className="mt-3 pt-3 border-t border-navy-lighter">
+                <div className="text-xs text-gray-400 flex items-center gap-1">
+                  <ClipboardCheck className="w-3 h-3" />
+                  待审核变更申请: <span className="text-warning font-medium">{riskAggregation.summary.pending_change_requests_count}</span> 条
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="bg-navy-light border border-navy-lighter rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
@@ -457,6 +545,38 @@ function AlertCard({ alert, onClick }: { alert: AlertItem; onClick: () => void }
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-gray-200 truncate">{alert.title}</div>
         <div className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{alert.message}</div>
+      </div>
+    </div>
+  );
+}
+
+function RiskPlanRow({ plan, level, navigate }: { plan: any; level: string; navigate: (path: string) => void }) {
+  const levelConfig: Record<string, { dot: string; border: string; bg: string }> = {
+    critical: { dot: "bg-danger", border: "border-danger/20", bg: "bg-danger/5" },
+    warning: { dot: "bg-warning", border: "border-warning/20", bg: "bg-warning/5" },
+    info: { dot: "bg-port", border: "border-port/20", bg: "bg-port/5" },
+  };
+  const cfg = levelConfig[level] || levelConfig.info;
+
+  return (
+    <div
+      className={cn("flex items-center justify-between p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity", cfg.border, cfg.bg)}
+      onClick={() => {
+        if (plan.voyage_id) navigate(`/voyages/${plan.voyage_id}`);
+        else if (plan.id) navigate(`/plans/${plan.id}`);
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <div className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+        <span className="text-xs text-gray-200">{plan.ship_name || "未知船舶"}</span>
+        <StatusBadge status={plan.status as never} />
+      </div>
+      <div className="flex items-center gap-2">
+        {plan.last_status_change_reason && (
+          <span className="text-[10px] text-gray-500 truncate max-w-32">
+            {String(plan.last_status_change_reason).slice(0, 20)}...
+          </span>
+        )}
       </div>
     </div>
   );
