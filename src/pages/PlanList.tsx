@@ -184,7 +184,7 @@ export default function PlanList() {
                           {plan.id.slice(0, 8)}
                         </td>
                         <td className="py-3 px-4 text-gray-200">
-                          {getShipName(plan.ship_id)}
+                          {getShipName(plan.shipId)}
                         </td>
                         <td className="py-3 px-4 text-gray-400 text-xs">
                           {plan.route}
@@ -193,14 +193,14 @@ export default function PlanList() {
                           <span
                             className={cn(
                               "text-xs font-medium",
-                              riskColors[plan.route_risk_level ?? "low"]
+                              riskColors[plan.routeRiskLevel ?? "low"]
                             )}
                           >
-                            {riskLabels[plan.route_risk_level ?? "low"]}
+                            {riskLabels[plan.routeRiskLevel ?? "low"]}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          {plan.danger_goods_declared ? (
+                          {plan.dangerGoodsDeclared ? (
                             <span className="text-xs text-danger">是</span>
                           ) : (
                             <span className="text-xs text-gray-500">否</span>
@@ -210,7 +210,7 @@ export default function PlanList() {
                           <StatusBadge status={plan.status as never} />
                         </td>
                         <td className="py-3 px-4 text-gray-400 text-xs">
-                          {plan.departure_time}
+                          {plan.departureTime}
                         </td>
                         <td className="py-3 px-4">
                           <div

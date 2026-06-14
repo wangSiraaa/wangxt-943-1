@@ -52,22 +52,25 @@ const riskLevelLabels: Record<string, string> = {
 };
 
 const planStatusLabels: Record<string, string> = {
+  draft: "草稿",
   submitted: "待复核",
-  reviewing: "待复核",
+  reviewing: "复核中",
   inspected: "待抽查",
-  inspecting: "待抽查",
+  inspecting: "抽查中",
   approved: "待放行",
   released: "已放行",
   active: "航行中",
   returning: "返航中",
+  abnormal_return: "异常返港",
+  closed: "已关闭",
   completed: "已完成",
   rejected: "已打回",
+  revoked: "已撤销",
   withdrawn: "已撤回",
-  emergency_rejected: "管控打回",
-  under_control: "管控中",
 };
 
 const planStatusColors: Record<string, string> = {
+  draft: "bg-gray-500/20 text-gray-400",
   submitted: "bg-info/20 text-info",
   reviewing: "bg-info/20 text-info",
   inspected: "bg-warning/20 text-warning",
@@ -76,11 +79,12 @@ const planStatusColors: Record<string, string> = {
   released: "bg-success/20 text-success",
   active: "bg-nautical/20 text-nautical-light",
   returning: "bg-nautical/20 text-nautical-light",
+  abnormal_return: "bg-danger/20 text-danger",
+  closed: "bg-gray-500/20 text-gray-400",
   completed: "bg-gray-500/20 text-gray-400",
   rejected: "bg-danger/20 text-danger",
+  revoked: "bg-warning/20 text-warning",
   withdrawn: "bg-gray-500/20 text-gray-400",
-  emergency_rejected: "bg-danger/20 text-danger",
-  under_control: "bg-warning/20 text-warning",
 };
 
 const changeTypeLabels: Record<string, string> = {
@@ -129,16 +133,12 @@ export default function EmergencyControlDetail() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [controlData, plansData, logsData] = await Promise.all([
-        apiRequest<EmergencyControl>(`/api/emergency/${id}`),
-        apiRequest<{ plans: Plan[]; voyages: Voyage[] }>(`/api/emergency/${id}/affected`),
-        fetchStatusChangeLogs(id!),
-      ]);
+      const controlData = await apiRequest<EmergencyControl>(`/api/emergency/${id}`);
 
       setControl(controlData);
-      setAffectedPlans(plansData.plans || []);
-      setAffectedVoyages(plansData.voyages || []);
-      setStatusLogs(logsData || []);
+      setAffectedPlans(controlData.affectedPlans || []);
+      setAffectedVoyages(controlData.affectedVoyages || []);
+      setStatusLogs(controlData.statusLogs || []);
     } catch (error) {
       console.error("加载管控详情失败", error);
     } finally {
@@ -153,22 +153,6 @@ export default function EmergencyControlDetail() {
     if (success) {
       fetchEmergencyControls();
       loadData();
-    }
-  };
-
-  const handleProcess = async (planId: string, action: 'review' | 'recall') => {
-    try {
-      const actionLabel = action === 'review' ? '复核通过' : '召回重新审核';
-      if (!confirm(`确认${actionLabel}该计划？`)) return;
-
-      await apiRequest(`/api/emergency/${id}/process-plan`, {
-        method: "POST",
-        body: JSON.stringify({ planId, action }),
-      });
-
-      loadData();
-    } catch (error) {
-      console.error("处理计划失败", error);
     }
   };
 
@@ -195,8 +179,8 @@ export default function EmergencyControlDetail() {
     );
   }
 
-  const pendingPlans = affectedPlans.filter(p => p.status === 'under_control' || p.status === 'emergency_rejected');
-  const processingVoyages = affectedVoyages.filter(v => v.status === 'under_control' || v.status === 'returning');
+  const pendingPlans = affectedPlans.filter(p => p.status === 'rejected' || p.status === 'submitted');
+  const processingVoyages = affectedVoyages.filter(v => v.status === 'closed' || v.status === 'abnormal_return');
 
   return (
     <div className="space-y-6">
@@ -221,13 +205,13 @@ export default function EmergencyControlDetail() {
             <span
               className={cn(
                 "px-2.5 py-1 text-xs font-medium rounded-full border",
-                riskLevelColors[control.risk_level]
+                riskLevelColors[control.riskLevel]
               )}
             >
-              {riskLevelLabels[control.risk_level]}风险
+              {riskLevelLabels[control.riskLevel]}风险
             </span>
           </div>
-          <p className="text-gray-400 mt-1">{controlTypeLabels[control.control_type]}</p>
+          <p className="text-gray-400 mt-1">{controlTypeLabels[control.controlType]}</p>
         </div>
         {canEnd && (
           <button
@@ -249,14 +233,14 @@ export default function EmergencyControlDetail() {
             <div>
               <p className="text-sm text-gray-400">管控时间</p>
               <p className="font-medium text-white">
-                {new Date(control.start_time).toLocaleString("zh-CN")}
+                {new Date(control.startTime).toLocaleString("zh-CN")}
               </p>
-              <p className="text-sm text-gray-400">至 {new Date(control.end_time).toLocaleString("zh-CN")}</p>
+              <p className="text-sm text-gray-400">至 {new Date(control.endTime).toLocaleString("zh-CN")}</p>
             </div>
           </div>
         </div>
 
-        {control.affected_area && (
+        {control.affectedArea && (
           <div className="bg-navy-light rounded-xl border border-navy-lighter p-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-lg bg-nautical/20 flex items-center justify-center">
@@ -264,7 +248,7 @@ export default function EmergencyControlDetail() {
               </div>
               <div>
                 <p className="text-sm text-gray-400">影响区域</p>
-                <p className="font-medium text-white">{control.affected_area}</p>
+                <p className="font-medium text-white">{control.affectedArea}</p>
               </div>
             </div>
           </div>
@@ -277,8 +261,8 @@ export default function EmergencyControlDetail() {
             </div>
             <div>
               <p className="text-sm text-gray-400">发布人</p>
-              <p className="font-medium text-white">{control.created_by_name || "系统"}</p>
-              <p className="text-sm text-gray-400">{new Date(control.created_at).toLocaleString("zh-CN")}</p>
+              <p className="font-medium text-white">{control.createdByName || "系统"}</p>
+              <p className="text-sm text-gray-400">{new Date(control.createdAt).toLocaleString("zh-CN")}</p>
             </div>
           </div>
         </div>
@@ -363,7 +347,7 @@ export default function EmergencyControlDetail() {
                         <Ship className="w-5 h-5 text-nautical-light" />
                       </div>
                       <div>
-                        <p className="font-medium text-white">{plan.ship_name || `计划 #${plan.id.slice(0, 8)}`}</p>
+                        <p className="font-medium text-white">{plan.shipName || `计划 #${plan.id.slice(0, 8)}`}</p>
                         <div className="flex items-center gap-3 mt-1 text-sm">
                           <span className={cn(
                             "px-2 py-0.5 rounded text-xs",
@@ -371,31 +355,15 @@ export default function EmergencyControlDetail() {
                           )}>
                             {planStatusLabels[plan.status] || plan.status}
                           </span>
-                          {plan.last_status_change_reason && (
+                          {plan.lastStatusChangeReason && (
                             <span className="text-gray-400 line-clamp-1">
-                              {plan.last_status_change_reason}
+                              {plan.lastStatusChangeReason}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {plan.status === 'under_control' && canEnd && (
-                        <>
-                          <button
-                            onClick={() => handleProcess(plan.id, 'review')}
-                            className="px-3 py-1.5 text-sm bg-success/20 text-success hover:bg-success/30 rounded-lg transition-colors"
-                          >
-                            复核通过
-                          </button>
-                          <button
-                            onClick={() => handleProcess(plan.id, 'recall')}
-                            className="px-3 py-1.5 text-sm bg-warning/20 text-warning hover:bg-warning/30 rounded-lg transition-colors"
-                          >
-                            召回重审
-                          </button>
-                        </>
-                      )}
                       <button
                         onClick={() => navigate(`/plans/${plan.id}`)}
                         className="p-2 hover:bg-navy-lighter rounded-lg transition-colors"
@@ -424,7 +392,7 @@ export default function EmergencyControlDetail() {
                         <Ship className="w-5 h-5 text-nautical-light" />
                       </div>
                       <div>
-                        <p className="font-medium text-white">航次 #{voyage.id.slice(0, 8)}</p>
+                        <p className="font-medium text-white">{voyage.shipName || `航次 #${voyage.id.slice(0, 8)}`}</p>
                         <div className="flex items-center gap-3 mt-1 text-sm">
                           <span className={cn(
                             "px-2 py-0.5 rounded text-xs",
@@ -433,7 +401,7 @@ export default function EmergencyControlDetail() {
                             {planStatusLabels[voyage.status] || voyage.status}
                           </span>
                           <span className="text-gray-400">
-                            计划 ID: {voyage.plan_id.slice(0, 8)}
+                            计划 ID: {voyage.planId.slice(0, 8)}
                           </span>
                         </div>
                       </div>
@@ -463,11 +431,11 @@ export default function EmergencyControlDetail() {
                     <div className="flex flex-col items-center">
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center",
-                        changeTypeColors[log.change_type] || "bg-gray-500/20"
+                        changeTypeColors[log.changeType] || "bg-gray-500/20"
                       )}>
-                        {log.change_type.includes('reject') || log.change_type === 'abnormal_close' ? (
+                        {log.changeType.includes('reject') || log.changeType === 'abnormal_close' ? (
                           <XCircle className="w-4 h-4" />
-                        ) : log.change_type.includes('release') ? (
+                        ) : log.changeType.includes('release') ? (
                           <CheckCircle className="w-4 h-4" />
                         ) : (
                           <History className="w-4 h-4" />
@@ -479,21 +447,21 @@ export default function EmergencyControlDetail() {
                       <div className="flex items-center gap-2">
                         <span className={cn(
                           "px-2 py-0.5 rounded text-xs",
-                          changeTypeColors[log.change_type] || "bg-gray-500/20"
+                          changeTypeColors[log.changeType] || "bg-gray-500/20"
                         )}>
-                          {changeTypeLabels[log.change_type] || log.change_type}
+                          {changeTypeLabels[log.changeType] || log.changeType}
                         </span>
                         <span className="text-sm text-gray-400">
-                          {new Date(log.created_at).toLocaleString("zh-CN")}
+                          {new Date(log.createdAt).toLocaleString("zh-CN")}
                         </span>
                       </div>
                       <p className="text-white mt-2">{log.reason}</p>
                       <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                        <span>操作人: {log.operator_name || log.operator_id.slice(0, 8)}</span>
-                        <span>角色: {log.operator_role}</span>
-                        {log.old_status && log.new_status && (
+                        <span>操作人: {log.operatorName || log.operatorId.slice(0, 8)}</span>
+                        <span>角色: {log.operatorRole}</span>
+                        {log.oldStatus && log.newStatus && (
                           <span>
-                            {log.old_status} → {log.new_status}
+                            {log.oldStatus} → {log.newStatus}
                           </span>
                         )}
                       </div>

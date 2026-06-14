@@ -15,11 +15,9 @@ export async function getDb(): Promise<Database> {
   if (db) return db
 
   const SQL = await initSqlJs()
+  const isNewDb = !fs.existsSync(DB_PATH)
 
-  if (fs.existsSync(DB_PATH)) {
-    const buf = fs.readFileSync(DB_PATH)
-    db = new SQL.Database(buf)
-  } else {
+  if (isNewDb) {
     db = new SQL.Database()
     try {
       initSchema(db)
@@ -28,6 +26,17 @@ export async function getDb(): Promise<Database> {
       console.log('Database initialized and seeded successfully at', DB_PATH)
     } catch (err) {
       console.error('Database init/seed error:', err)
+      throw err
+    }
+  } else {
+    const buf = fs.readFileSync(DB_PATH)
+    db = new SQL.Database(buf)
+    try {
+      migrateSchema(db)
+      persist(db)
+      console.log('Database migrated successfully at', DB_PATH)
+    } catch (err) {
+      console.error('Database migration error:', err)
       throw err
     }
   }
@@ -67,7 +76,287 @@ export function persist(database: Database) {
   fs.writeFileSync(DB_PATH, Buffer.from(data))
 }
 
+function migrateSchema(database: Database) {
+  database.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('captain','duty_officer','supervisor','admin')),
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS ships (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      tonnage REAL NOT NULL,
+      length REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'in_port' CHECK(status IN ('in_port','at_sea','maintenance')),
+      current_voyage_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS certificates (
+      id TEXT PRIMARY KEY,
+      ship_id TEXT NOT NULL REFERENCES ships(id),
+      type TEXT NOT NULL,
+      issue_date TEXT NOT NULL,
+      expire_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'valid' CHECK(status IN ('valid','expiring_soon','expired')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS crew (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      qualification_type TEXT NOT NULL,
+      qualification_expire_date TEXT NOT NULL,
+      is_blacklisted INTEGER NOT NULL DEFAULT 0,
+      ship_id TEXT REFERENCES ships(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS berths (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      capacity INTEGER NOT NULL,
+      occupied INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available','occupied','reserved','maintenance'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS plans (
+      id TEXT PRIMARY KEY,
+      ship_id TEXT NOT NULL REFERENCES ships(id),
+      captain_id TEXT NOT NULL REFERENCES users(id),
+      voyage_id TEXT,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','submitted','reviewing','inspecting','released','rejected','revoked','withdrawn')),
+      departure_time TEXT NOT NULL,
+      expected_return_time TEXT NOT NULL,
+      route TEXT NOT NULL,
+      route_risk_level TEXT NOT NULL DEFAULT 'low' CHECK(route_risk_level IN ('low','medium','high')),
+      danger_goods_declared INTEGER NOT NULL DEFAULT 0,
+      danger_goods_detail TEXT,
+      fuel_remaining REAL NOT NULL DEFAULT 0,
+      berth_id TEXT REFERENCES berths(id),
+      crew_confirmed INTEGER NOT NULL DEFAULT 0,
+      rejection_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS plan_crew (
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      crew_id TEXT NOT NULL REFERENCES crew(id),
+      PRIMARY KEY (plan_id, crew_id)
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS voyages (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      ship_id TEXT NOT NULL REFERENCES ships(id),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','returning','abnormal_return','closed')),
+      departure_time TEXT NOT NULL,
+      expected_return_time TEXT NOT NULL,
+      actual_return_time TEXT,
+      return_deviation TEXT,
+      close_reason TEXT,
+      closed_by TEXT REFERENCES users(id),
+      closed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS approval_records (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      node TEXT NOT NULL CHECK(node IN ('auto_check','duty_review','supervisor_inspect','dock_release','emergency_review','change_review')),
+      action TEXT NOT NULL CHECK(action IN ('approved','rejected','revoked','pending')),
+      operator_id TEXT NOT NULL REFERENCES users(id),
+      operator_role TEXT NOT NULL,
+      comment TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS alerts (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('weather','return_timeout','cert_expire','route_risk','abnormal_release')),
+      level TEXT NOT NULL CHECK(level IN ('critical','warning','info')),
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      related_voyage_id TEXT REFERENCES voyages(id),
+      related_ship_id TEXT REFERENCES ships(id),
+      is_resolved INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS release_logs (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      ship_id TEXT NOT NULL REFERENCES ships(id),
+      operator_id TEXT NOT NULL REFERENCES users(id),
+      released_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS revoke_logs (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      release_log_id TEXT NOT NULL REFERENCES release_logs(id),
+      operator_id TEXT NOT NULL REFERENCES users(id),
+      reason TEXT NOT NULL,
+      revoked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS inspections (
+      id TEXT PRIMARY KEY,
+      voyage_id TEXT NOT NULL REFERENCES voyages(id),
+      ship_id TEXT NOT NULL REFERENCES ships(id),
+      inspector_id TEXT NOT NULL REFERENCES users(id),
+      inspection_type TEXT NOT NULL DEFAULT 'routine',
+      inspection_result TEXT NOT NULL DEFAULT 'pending',
+      certificate_check INTEGER NOT NULL DEFAULT 0,
+      crew_check INTEGER NOT NULL DEFAULT 0,
+      cargo_check INTEGER NOT NULL DEFAULT 0,
+      findings TEXT,
+      comment TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS risk_change_logs (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      old_risk_level TEXT,
+      new_risk_level TEXT,
+      change_reason TEXT,
+      changed_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS emergency_controls (
+      id TEXT PRIMARY KEY,
+      control_type TEXT NOT NULL CHECK(control_type IN ('temporary_ban','search_rescue','area_avoidance')),
+      title TEXT NOT NULL,
+      description TEXT,
+      affected_area TEXT,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      risk_level TEXT NOT NULL DEFAULT 'high' CHECK(risk_level IN ('low','medium','high','critical')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','ended','cancelled')),
+      created_by TEXT NOT NULL REFERENCES users(id),
+      ended_by TEXT REFERENCES users(id),
+      ended_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS status_change_logs (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT REFERENCES plans(id),
+      voyage_id TEXT REFERENCES voyages(id),
+      old_status TEXT NOT NULL,
+      new_status TEXT NOT NULL,
+      change_type TEXT NOT NULL CHECK(change_type IN ('auto_reject','manual_release','revoke_release','abnormal_close','emergency_reject','control_review','control_recall','change_request')),
+      reason TEXT NOT NULL,
+      operator_id TEXT NOT NULL REFERENCES users(id),
+      operator_role TEXT NOT NULL,
+      emergency_control_id TEXT REFERENCES emergency_controls(id),
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS voyage_change_requests (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      voyage_id TEXT REFERENCES voyages(id),
+      request_type TEXT NOT NULL CHECK(request_type IN ('route_change','crew_change','early_return')),
+      old_value TEXT,
+      new_value TEXT NOT NULL,
+      change_reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','cancelled')),
+      requested_by TEXT NOT NULL REFERENCES users(id),
+      reviewed_by TEXT REFERENCES users(id),
+      review_comment TEXT,
+      reviewed_at TEXT,
+      requires_recheck INTEGER NOT NULL DEFAULT 1,
+      recheck_certificate INTEGER DEFAULT 0,
+      recheck_berth INTEGER DEFAULT 0,
+      recheck_weather INTEGER DEFAULT 0,
+      recheck_inspection INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+
+  try { database.run('ALTER TABLE plans ADD COLUMN crew_confirmed INTEGER NOT NULL DEFAULT 0') } catch (_e) {}
+  try { database.run('ALTER TABLE plans ADD COLUMN emergency_control_id TEXT REFERENCES emergency_controls(id)') } catch (_e) {}
+  try { database.run('ALTER TABLE plans ADD COLUMN last_status_change_reason TEXT') } catch (_e) {}
+  try { database.run('ALTER TABLE plans ADD COLUMN change_request_id TEXT REFERENCES voyage_change_requests(id)') } catch (_e) {}
+
+  try { database.run('ALTER TABLE voyages ADD COLUMN emergency_control_id TEXT REFERENCES emergency_controls(id)') } catch (_e) {}
+  try { database.run('ALTER TABLE voyages ADD COLUMN last_status_change_reason TEXT') } catch (_e) {}
+  try { database.run('ALTER TABLE voyages ADD COLUMN change_request_id TEXT REFERENCES voyage_change_requests(id)') } catch (_e) {}
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_plans_status ON plans(status);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_plans_ship ON plans(ship_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_voyages_status ON voyages(status);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_voyages_ship ON voyages(ship_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_approval_plan ON approval_records(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(type);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_alerts_resolved ON alerts(is_resolved);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_certs_ship ON certificates(ship_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_certs_status ON certificates(status);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_crew_ship ON crew(ship_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_inspections_voyage ON inspections(voyage_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_inspections_ship ON inspections(ship_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_risk_logs_plan ON risk_change_logs(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_emergency_status ON emergency_controls(status);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_emergency_time ON emergency_controls(start_time, end_time);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_plan ON status_change_logs(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_voyage ON status_change_logs(voyage_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_status_log_type ON status_change_logs(change_type);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_plan ON voyage_change_requests(plan_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_voyage ON voyage_change_requests(voyage_id);`)
+  database.run(`CREATE INDEX IF NOT EXISTS idx_change_request_status ON voyage_change_requests(status);`)
+}
+
 function initSchema(database: Database) {
+  migrateSchema(database)
+  
   database.run(`
     CREATE TABLE users (
       id TEXT PRIMARY KEY,

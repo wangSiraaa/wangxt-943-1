@@ -149,7 +149,7 @@ export default function Dashboard() {
   }, [refreshAll]);
 
   const recentPlans = plans.slice(0, 5);
-  const unresolvedAlerts = alerts.filter((a) => a.is_resolved === 0).slice(0, 5);
+  const unresolvedAlerts = alerts.filter((a) => !a.isResolved).slice(0, 5);
   const activeVoyages = ships.filter((s) => s.status === "at_sea");
 
   const getShipName = (shipId: string) => ships.find((s) => s.id === shipId)?.name ?? "-";
@@ -357,8 +357,8 @@ export default function Dashboard() {
                     key={ship.id}
                     className="flex items-center justify-between p-2 rounded-lg bg-navy-lighter/30 hover:bg-navy-lighter/50 transition-colors cursor-pointer"
                     onClick={() => {
-                      if (ship.current_voyage_id) {
-                        navigate(`/voyages/${ship.current_voyage_id}`);
+                      if (ship.currentVoyageId) {
+                        navigate(`/voyages/${ship.currentVoyageId}`);
                       }
                     }}
                   >
@@ -378,7 +378,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {riskAggregation && (riskAggregation.summary.total_affected > 0 || riskAggregation.summary.active_controls_count > 0) && (
+        {riskAggregation && (riskAggregation.summary.totalAffected > 0 || riskAggregation.summary.activeControlsCount > 0) && (
           <div className="bg-navy-light border border-warning/30 rounded-xl p-5 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
@@ -393,24 +393,24 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {riskAggregation.summary.active_controls_count > 0 && (
+            {riskAggregation.summary.activeControlsCount > 0 && (
               <div className="mb-4">
                 <div className="text-xs text-warning mb-2">活跃管控</div>
                 <div className="flex gap-2 flex-wrap">
-                  {riskAggregation.active_controls.map((ctrl: any) => (
+                  {riskAggregation.activeControls.map((ctrl) => (
                     <div
                       key={ctrl.id}
                       className={cn(
                         "px-3 py-1.5 rounded-lg text-xs border cursor-pointer hover:opacity-80 transition-opacity",
-                        ctrl.risk_level === "critical"
+                        ctrl.riskLevel === "critical"
                           ? "bg-danger/10 border-danger/30 text-danger-light"
-                          : ctrl.risk_level === "high"
+                          : ctrl.riskLevel === "high"
                           ? "bg-warning/10 border-warning/30 text-warning"
                           : "bg-yellow-600/10 border-yellow-600/30 text-yellow-400"
                       )}
                       onClick={() => navigate(`/emergency/${ctrl.id}`)}
                     >
-                      <span className="font-medium">{ctrl.control_type === "navigation_ban" ? "禁航" : ctrl.control_type === "search_drill" ? "搜救演练" : "海域避让"}</span>
+                      <span className="font-medium">{ctrl.controlType === "navigation_ban" ? "禁航" : ctrl.controlType === "search_drill" ? "搜救演练" : "海域避让"}</span>
                       <span className="ml-1 opacity-70">{ctrl.title}</span>
                     </div>
                   ))}
@@ -420,15 +420,15 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="bg-danger/10 border border-danger/20 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-danger">{riskAggregation.summary.critical_count}</div>
+                <div className="text-xl font-bold text-danger">{riskAggregation.summary.criticalCount}</div>
                 <div className="text-[10px] text-danger-light mt-0.5">高风险</div>
               </div>
               <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-warning">{riskAggregation.summary.warning_count}</div>
+                <div className="text-xl font-bold text-warning">{riskAggregation.summary.warningCount}</div>
                 <div className="text-[10px] text-warning-light mt-0.5">中风险</div>
               </div>
               <div className="bg-port/10 border border-port/20 rounded-lg p-3 text-center">
-                <div className="text-xl font-bold text-port">{riskAggregation.summary.info_count}</div>
+                <div className="text-xl font-bold text-port">{riskAggregation.summary.infoCount}</div>
                 <div className="text-[10px] text-port mt-0.5">低风险</div>
               </div>
             </div>
@@ -445,11 +445,11 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {riskAggregation.summary.pending_change_requests_count > 0 && (
+            {riskAggregation.summary.pendingChangeRequestsCount > 0 && (
               <div className="mt-3 pt-3 border-t border-navy-lighter">
                 <div className="text-xs text-gray-400 flex items-center gap-1">
                   <ClipboardCheck className="w-3 h-3" />
-                  待审核变更申请: <span className="text-warning font-medium">{riskAggregation.summary.pending_change_requests_count}</span> 条
+                  待审核变更申请: <span className="text-warning font-medium">{riskAggregation.summary.pendingChangeRequestsCount}</span> 条
                 </div>
               </div>
             )}
@@ -487,12 +487,12 @@ export default function Dashboard() {
                       className="border-b border-navy-lighter/50 hover:bg-navy-lighter/30 cursor-pointer transition-colors"
                       onClick={() => navigate(`/plans/${plan.id}`)}
                     >
-                      <td className="py-2.5 text-gray-200">{getShipName(plan.ship_id)}</td>
+                      <td className="py-2.5 text-gray-200">{getShipName(plan.shipId)}</td>
                       <td className="py-2.5">
                         <StatusBadge status={plan.status as never} />
                       </td>
                       <td className="py-2.5 text-gray-400">
-                        {plan.departure_time}
+                        {plan.departureTime}
                       </td>
                       <td className="py-2.5 text-gray-400">
                         {plan.route}
@@ -562,19 +562,19 @@ function RiskPlanRow({ plan, level, navigate }: { plan: any; level: string; navi
     <div
       className={cn("flex items-center justify-between p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity", cfg.border, cfg.bg)}
       onClick={() => {
-        if (plan.voyage_id) navigate(`/voyages/${plan.voyage_id}`);
+        if (plan.voyageId) navigate(`/voyages/${plan.voyageId}`);
         else if (plan.id) navigate(`/plans/${plan.id}`);
       }}
     >
       <div className="flex items-center gap-2">
         <div className={cn("w-2 h-2 rounded-full", cfg.dot)} />
-        <span className="text-xs text-gray-200">{plan.ship_name || "未知船舶"}</span>
+        <span className="text-xs text-gray-200">{plan.shipName || "未知船舶"}</span>
         <StatusBadge status={plan.status as never} />
       </div>
       <div className="flex items-center gap-2">
-        {plan.last_status_change_reason && (
+        {plan.lastStatusChangeReason && (
           <span className="text-[10px] text-gray-500 truncate max-w-32">
-            {String(plan.last_status_change_reason).slice(0, 20)}...
+            {String(plan.lastStatusChangeReason).slice(0, 20)}...
           </span>
         )}
       </div>

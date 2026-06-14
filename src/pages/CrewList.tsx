@@ -8,11 +8,11 @@ interface CrewRow {
   id: string;
   name: string;
   role: string;
-  qualification_type: string;
-  qualification_expire_date: string;
-  is_blacklisted: number;
-  ship_id: string | null;
-  ship_name: string;
+  qualificationType: string;
+  qualificationExpireDate: string;
+  isBlacklisted: boolean;
+  shipId: string | null;
+  shipName: string;
 }
 
 const roleLabels: Record<string, string> = {
@@ -50,9 +50,9 @@ export default function CrewList() {
   const [form, setForm] = useState({
     name: "",
     role: "sailor",
-    qualification_type: "",
-    qualification_expire_date: "",
-    ship_id: "",
+    qualificationType: "",
+    qualificationExpireDate: "",
+    shipId: "",
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -75,11 +75,11 @@ export default function CrewList() {
       id: c.id,
       name: c.name,
       role: c.role,
-      qualification_type: c.qualification_type,
-      qualification_expire_date: c.qualification_expire_date,
-      is_blacklisted: c.is_blacklisted,
-      ship_id: c.ship_id,
-      ship_name: getShipName(c.ship_id),
+      qualificationType: c.qualificationType,
+      qualificationExpireDate: c.qualificationExpireDate,
+      isBlacklisted: c.isBlacklisted,
+      shipId: c.shipId,
+      shipName: getShipName(c.shipId),
     }));
     setRows(mapped);
   }, [crew, ships]);
@@ -88,16 +88,16 @@ export default function CrewList() {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleBlacklist = async (id: string, current: number) => {
+  const toggleBlacklist = async (id: string, current: boolean) => {
     try {
       const res = await fetch(`/api/crew/${id}/blacklist`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_blacklisted: current ? 0 : 1 }),
+        body: JSON.stringify({ isBlacklisted: !current }),
       });
       if (!res.ok) throw new Error();
       setRows((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, is_blacklisted: current ? 0 : 1 } : r))
+        prev.map((r) => (r.id === id ? { ...r, isBlacklisted: !current } : r))
       );
     } catch {
       console.error("黑名单操作失败");
@@ -110,11 +110,14 @@ export default function CrewList() {
       const res = await fetch("/api/crew", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          id: crypto.randomUUID(),
+          ...form,
+        }),
       });
       if (!res.ok) throw new Error();
       setShowModal(false);
-      setForm({ name: "", role: "sailor", qualification_type: "", qualification_expire_date: "", ship_id: "" });
+      setForm({ name: "", role: "sailor", qualificationType: "", qualificationExpireDate: "", shipId: "" });
       await loadCrew();
     } catch {
       console.error("添加船员失败");
@@ -170,12 +173,12 @@ export default function CrewList() {
                   <td className="px-4 py-3 text-gray-300">
                     {roleLabels[r.role] || r.role}
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{r.qualification_type || "-"}</td>
-                  <td className={cn("px-4 py-3", expireColor(r.qualification_expire_date))}>
-                    {r.qualification_expire_date || "-"}
+                  <td className="px-4 py-3 text-gray-300">{r.qualificationType || "-"}</td>
+                  <td className={cn("px-4 py-3", expireColor(r.qualificationExpireDate))}>
+                    {r.qualificationExpireDate || "-"}
                   </td>
                   <td className="px-4 py-3">
-                    {r.is_blacklisted ? (
+                    {r.isBlacklisted ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger/20 text-danger-light">
                         已列入
                       </span>
@@ -185,19 +188,19 @@ export default function CrewList() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{r.ship_name || "-"}</td>
+                  <td className="px-4 py-3 text-gray-300">{r.shipName || "-"}</td>
                   <td className="px-4 py-3">
                     {canBlacklist && (
                       <button
-                        onClick={() => toggleBlacklist(r.id, r.is_blacklisted)}
+                        onClick={() => toggleBlacklist(r.id, r.isBlacklisted)}
                         className={cn(
                           "flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-colors",
-                          r.is_blacklisted
+                          r.isBlacklisted
                             ? "bg-port/20 text-port-light hover:bg-port/30"
                             : "bg-danger/20 text-danger-light hover:bg-danger/30"
                         )}
                       >
-                        {r.is_blacklisted ? (
+                        {r.isBlacklisted ? (
                           <>
                             <ShieldCheck className="w-3.5 h-3.5" /> 移出
                           </>
@@ -259,8 +262,8 @@ export default function CrewList() {
               <div>
                 <label className="block text-sm text-gray-400 mb-1">资质类型</label>
                 <input
-                  value={form.qualification_type}
-                  onChange={(e) => setForm((f) => ({ ...f, qualification_type: e.target.value }))}
+                  value={form.qualificationType}
+                  onChange={(e) => setForm((f) => ({ ...f, qualificationType: e.target.value }))}
                   className="w-full px-3 py-2 bg-navy border border-navy-lighter rounded-lg text-sm text-gray-200 focus:outline-none focus:border-nautical"
                 />
               </div>
@@ -268,16 +271,16 @@ export default function CrewList() {
                 <label className="block text-sm text-gray-400 mb-1">资质到期日</label>
                 <input
                   type="date"
-                  value={form.qualification_expire_date}
-                  onChange={(e) => setForm((f) => ({ ...f, qualification_expire_date: e.target.value }))}
+                  value={form.qualificationExpireDate}
+                  onChange={(e) => setForm((f) => ({ ...f, qualificationExpireDate: e.target.value }))}
                   className="w-full px-3 py-2 bg-navy border border-navy-lighter rounded-lg text-sm text-gray-200 focus:outline-none focus:border-nautical"
                 />
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">所属船舶ID</label>
                 <input
-                  value={form.ship_id}
-                  onChange={(e) => setForm((f) => ({ ...f, ship_id: e.target.value }))}
+                  value={form.shipId}
+                  onChange={(e) => setForm((f) => ({ ...f, shipId: e.target.value }))}
                   className="w-full px-3 py-2 bg-navy border border-navy-lighter rounded-lg text-sm text-gray-200 focus:outline-none focus:border-nautical"
                 />
               </div>

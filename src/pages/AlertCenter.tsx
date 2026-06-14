@@ -64,7 +64,7 @@ export default function AlertCenter() {
     };
     const mapped: AlertExt[] = alerts.map((a) => ({
       ...a,
-      shipName: getShipName(a.related_ship_id),
+      shipName: getShipName(a.relatedShipId),
     }));
     setAlertData(mapped);
   }, [alerts, ships]);
@@ -78,7 +78,7 @@ export default function AlertCenter() {
       ? alertData
       : alertData.filter((a) => a.type === activeTab);
 
-  const unresolvedCount = alertData.filter((a) => !a.is_resolved).length;
+  const unresolvedCount = alertData.filter((a) => !a.isResolved).length;
 
   const handleResolve = async (id: string) => {
     setResolving(id);
@@ -86,7 +86,7 @@ export default function AlertCenter() {
       const res = await fetch(`/api/alerts/${id}/resolve`, { method: "PUT" });
       if (!res.ok) throw new Error();
       setAlertData((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, is_resolved: 1 } : a))
+        prev.map((a) => (a.id === id ? { ...a, isResolved: true } : a))
       );
     } catch {
       console.error("处理预警失败");
@@ -181,7 +181,7 @@ export default function AlertCenter() {
             key={a.id}
             className={cn(
               "bg-navy-light border rounded-xl p-4 transition-opacity",
-              a.is_resolved ? "border-navy-lighter opacity-60" : "border-navy-lighter"
+              a.isResolved ? "border-navy-lighter opacity-60" : "border-navy-lighter"
             )}
           >
             <div className="flex items-start gap-3">
@@ -196,13 +196,13 @@ export default function AlertCenter() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h4 className="text-sm font-medium text-gray-200">{a.title}</h4>
-                  {a.is_resolved ? (
+                  {a.isResolved ? (
                     <CheckCircle className="w-4 h-4 text-port shrink-0" />
                   ) : null}
                 </div>
                 <p className="text-sm text-gray-400 mt-1">{a.message}</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                  <span>{a.created_at}</span>
+                  <span>{a.createdAt}</span>
                   {a.shipName && (
                     <button
                       onClick={() => navigate("/ships")}
@@ -212,9 +212,9 @@ export default function AlertCenter() {
                       {a.shipName}
                     </button>
                   )}
-                  {a.related_voyage_id && (
+                  {a.relatedVoyageId && (
                     <button
-                      onClick={() => navigate(`/voyages/${a.related_voyage_id}`)}
+                      onClick={() => navigate(`/voyages/${a.relatedVoyageId}`)}
                       className="flex items-center gap-1 text-nautical-light hover:underline"
                     >
                       <ExternalLink className="w-3 h-3" />
@@ -223,7 +223,7 @@ export default function AlertCenter() {
                   )}
                 </div>
               </div>
-              {canResolve && !a.is_resolved && (
+              {canResolve && !a.isResolved && (
                 <button
                   onClick={() => handleResolve(a.id)}
                   disabled={resolving === a.id}

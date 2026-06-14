@@ -40,11 +40,11 @@ interface ApprovalRecord {
 
 interface RiskChangeLog {
   id: string;
-  old_risk_level: string;
-  new_risk_level: string;
-  change_reason: string;
-  changed_by_name?: string;
-  created_at: string;
+  oldRiskLevel: string;
+  newRiskLevel: string;
+  changeReason: string;
+  changedByName?: string;
+  createdAt: string;
 }
 
 const riskLabels: Record<string, string> = {
@@ -121,7 +121,7 @@ export default function PlanDetail() {
       setRecords(recRes.success ? recRes.data : recRes);
       setRiskLogs(riskRes.success ? riskRes.data : riskRes);
       if (planRes.success && planRes.data) {
-        setCrewConfirmed((planRes.data as any).crew_confirmed === 1);
+        setCrewConfirmed((planRes.data as any).crewConfirmed === 1);
       }
     } catch {
       setError("加载计划详情失败");
@@ -185,7 +185,7 @@ export default function PlanDetail() {
 
   const role = user?.role ?? "";
   const status = plan?.status ?? "";
-  const isLowRisk = plan?.route_risk_level === "low";
+  const isLowRisk = plan?.routeRiskLevel === "low";
 
   const actionButtons: ActionButton[] = useMemo(() => {
     const btns: ActionButton[] = [];
@@ -331,11 +331,11 @@ export default function PlanDetail() {
   const timelineNodes: TimelineNode[] = records.map((r: any) => {
     const node = r.node || r.step || "unknown";
     const action = r.action || r.result || "unknown";
-    const operatorName = r.operator_name || r.operatorName || r.operator || "系统";
-    const operatorRole = r.operator_role || r.operatorRole || "";
+    const operatorName = r.operatorName || r.operator || "系统";
+    const operatorRole = r.operatorRole || "";
     return {
       title: `${nodeLabels[node] || node} - ${actionLabels[action] || action}`,
-      time: r.created_at || r.time,
+      time: r.createdAt || r.time,
       operator: operatorRole ? `${operatorName} (${operatorRole})` : operatorName,
       comment: r.comment,
       status:
@@ -392,9 +392,9 @@ export default function PlanDetail() {
               计划编号: {plan.id.slice(0, 8)}
             </p>
           </div>
-          {plan.voyage_id && (
+          {plan.voyageId && (
             <button
-              onClick={() => navigate(`/voyages/${plan.voyage_id}`)}
+              onClick={() => navigate(`/voyages/${plan.voyageId}`)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-nautical/20 text-nautical-light text-xs hover:bg-nautical/30 transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -414,42 +414,42 @@ export default function PlanDetail() {
             基本信息
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-1">
-            <InfoItem label="船舶" value={getShipName(plan.ship_id)} />
+            <InfoItem label="船舶" value={getShipName(plan.shipId)} />
             <InfoItem
               label="航线"
               value={plan.route}
             />
-            <InfoItem label="计划出港" value={plan.departure_time} />
-            <InfoItem label="预计返港" value={plan.expected_return_time} />
+            <InfoItem label="计划出港" value={plan.departureTime} />
+            <InfoItem label="预计返港" value={plan.expectedReturnTime} />
             <InfoItem
               label="航线风险"
-              value={riskLabels[plan.route_risk_level ?? "low"]}
-              valueClass={riskColors[plan.route_risk_level ?? "low"]}
+              value={riskLabels[plan.routeRiskLevel ?? "low"]}
+              valueClass={riskColors[plan.routeRiskLevel ?? "low"]}
             />
             <InfoItem
               label="危险品"
-              value={plan.danger_goods_declared ? "是" : "否"}
-              valueClass={plan.danger_goods_declared ? "text-danger" : "text-gray-400"}
+              value={plan.dangerGoodsDeclared ? "是" : "否"}
+              valueClass={plan.dangerGoodsDeclared ? "text-danger" : "text-gray-400"}
             />
-            {plan.danger_goods_declared && plan.danger_goods_detail && (
+            {plan.dangerGoodsDeclared && plan.dangerGoodsDetail && (
               <div className="col-span-2 py-2 flex flex-col gap-0.5">
                 <span className="text-xs text-gray-500">危险品详情</span>
                 <span className="text-sm text-gray-300 bg-navy-lighter/50 rounded px-2 py-1">
-                  {plan.danger_goods_detail}
+                  {plan.dangerGoodsDetail}
                 </span>
               </div>
             )}
             <InfoItem
               label="燃油余量"
-              value={`${plan.fuel_remaining}%`}
+              value={`${plan.fuelRemaining}%`}
             />
-            <InfoItem label="泊位" value={plan.berth_id ? getBerthName(plan.berth_id) : "-"} />
-            <InfoItem label="船员人数" value={`${plan.crew_ids?.length ?? 0}人`} />
-            {plan.crew_ids && plan.crew_ids.length > 0 && (
+            <InfoItem label="泊位" value={plan.berthId ? getBerthName(plan.berthId) : "-"} />
+            <InfoItem label="船员人数" value={`${plan.crewIds?.length ?? 0}人`} />
+            {plan.crewIds && plan.crewIds.length > 0 && (
               <div className="col-span-2 py-2 flex flex-col gap-0.5">
                 <span className="text-xs text-gray-500">随行船员</span>
                 <span className="text-sm text-gray-300">
-                  {getCrewNames(plan.crew_ids).join("、")}
+                  {getCrewNames(plan.crewIds).join("、")}
                 </span>
               </div>
             )}
@@ -481,22 +481,22 @@ export default function PlanDetail() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-xs px-2 py-0.5 rounded", riskColors[log.old_risk_level || "low"])}>
-                        {riskLabels[log.old_risk_level || "low"]}
+                      <span className={cn("text-xs px-2 py-0.5 rounded", riskColors[log.oldRiskLevel || "low"])}>
+                        {riskLabels[log.oldRiskLevel || "low"]}
                       </span>
                       <span className="text-gray-500">→</span>
-                      <span className={cn("text-xs px-2 py-0.5 rounded", riskColors[log.new_risk_level])}>
-                        {riskLabels[log.new_risk_level]}
+                      <span className={cn("text-xs px-2 py-0.5 rounded", riskColors[log.newRiskLevel])}>
+                        {riskLabels[log.newRiskLevel]}
                       </span>
                     </div>
                     <span className="text-[10px] text-gray-500">
-                      {new Date(log.created_at).toLocaleString("zh-CN")}
+                      {new Date(log.createdAt).toLocaleString("zh-CN")}
                     </span>
                   </div>
                   <div className="text-xs text-gray-400">
-                    <span className="text-gray-300">{log.changed_by_name || "未知用户"}</span>
+                    <span className="text-gray-300">{log.changedByName || "未知用户"}</span>
                     <span className="mx-1">•</span>
-                    <span>变更原因: {log.change_reason}</span>
+                    <span>变更原因: {log.changeReason}</span>
                   </div>
                 </div>
               ))}
@@ -538,7 +538,7 @@ export default function PlanDetail() {
                       checked={crewConfirmed}
                       onChange={(e) => setCrewConfirmed(e.target.checked)}
                       disabled={
-                        (plan as any)?.crew_confirmed === 1 || actionLoading
+                        (plan as any)?.crewConfirmed === 1 || actionLoading
                       }
                       className="mt-1 w-4 h-4 rounded border-navy-lighter bg-navy text-port focus:ring-port"
                     />
@@ -546,12 +546,12 @@ export default function PlanDetail() {
                       htmlFor="crewConfirm"
                       className={cn(
                         "text-xs cursor-pointer select-none",
-                        crewConfirmed || (plan as any)?.crew_confirmed === 1
+                        crewConfirmed || (plan as any)?.crewConfirmed === 1
                           ? "text-port"
                           : "text-warning"
                       )}
                     >
-                      {(plan as any)?.crew_confirmed === 1
+                      {(plan as any)?.crewConfirmed === 1
                         ? "✓ 船员名单已核验（值班复核时确认）"
                         : "我已核验船员名单与人员资质，确认人证一致，无黑名单人员，资质全部有效"}
                     </label>
@@ -559,7 +559,7 @@ export default function PlanDetail() {
                 )}
 
               {crewConfirmed === false &&
-                (plan as any)?.crew_confirmed !== 1 &&
+                (plan as any)?.crewConfirmed !== 1 &&
                 role === ROLE_DUTY &&
                 (status === "submitted" || status === "reviewing") && (
                   <div className="bg-warning/10 border border-warning/30 rounded-lg px-3 py-2">
@@ -601,7 +601,7 @@ export default function PlanDetail() {
           setRiskChangeReason("");
         }}
         onConfirm={handleRiskChange}
-        currentLevel={plan?.route_risk_level || "low"}
+        currentLevel={plan?.routeRiskLevel || "low"}
         newLevel={newRiskLevel}
         setNewLevel={setNewRiskLevel}
         reason={riskChangeReason}

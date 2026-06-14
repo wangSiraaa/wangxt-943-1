@@ -26,9 +26,9 @@ interface Certificate {
 
 interface HistoryVoyage {
   id: string;
-  plan_id: string;
-  departure_time: string;
-  actual_return_time: string | null;
+  planId: string;
+  departureTime: string;
+  actualReturnTime: string | null;
   status: string;
 }
 
@@ -381,10 +381,10 @@ export default function ShipDetail() {
                       {v.id}
                     </td>
                     <td className="py-3 px-2 text-gray-300">
-                      {v.departure_time}
+                      {v.departureTime}
                     </td>
                     <td className="py-3 px-2 text-gray-300">
-                      {v.actual_return_time ?? "-"}
+                      {v.actualReturnTime ?? "-"}
                     </td>
                     <td className="py-3 px-2 text-gray-300">{v.status}</td>
                   </tr>

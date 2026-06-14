@@ -37,12 +37,9 @@ interface VoyageDetail extends Voyage {
   deviationReason?: string;
   reviewedBy?: string;
   reviewComment?: string;
-  closed_by?: string;
-  closed_by_name?: string;
-  close_reason?: string;
-  closed_at?: string;
-  return_deviation_hours?: number;
-  is_return_overdue?: boolean;
+  closedByName?: string;
+  returnDeviationHours?: number;
+  isReturnOverdue?: boolean;
 }
 
 interface InspectionRecord {
@@ -166,11 +163,11 @@ export default function VoyageDetailPage() {
   }, [id]);
 
   const getReturnDeviation = () => {
-    if (!voyage || !voyage.actual_return_time || !voyage.expected_return_time) {
+    if (!voyage || !voyage.actualReturnTime || !voyage.expectedReturnTime) {
       return { hours: 0, isOverdue: false, text: "-" };
     }
-    const actual = new Date(voyage.actual_return_time).getTime();
-    const expected = new Date(voyage.expected_return_time).getTime();
+    const actual = new Date(voyage.actualReturnTime).getTime();
+    const expected = new Date(voyage.expectedReturnTime).getTime();
     const diffMs = actual - expected;
     const diffHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
     const isOverdue = diffHours > 0;
@@ -189,8 +186,8 @@ export default function VoyageDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ship_id: voyage.ship_id,
-          inspection_type: "routine",
+          shipId: voyage.shipId,
+          inspectionType: "routine",
         }),
       });
       if (res.ok) {
@@ -209,10 +206,10 @@ export default function VoyageDetailPage() {
   }, [fetchDetail, fetchPlans, fetchShips]);
 
   useEffect(() => {
-    if (voyage?.plan_id && plans.length > 0) {
-      setPlan(plans.find((p) => p.id === voyage.plan_id) ?? null);
+    if (voyage?.planId && plans.length > 0) {
+      setPlan(plans.find((p) => p.id === voyage.planId) ?? null);
     }
-  }, [voyage?.plan_id, plans]);
+  }, [voyage?.planId, plans]);
 
   const getShipName = (shipId: string) => ships.find((s) => s.id === shipId)?.name ?? "-";
 
@@ -228,18 +225,18 @@ export default function VoyageDetailPage() {
     const nodes: TimelineNode[] = [
       {
         title: "计划创建",
-        time: plan.departure_time,
-        operator: plan.captain_name || "船长",
+        time: plan.departureTime,
+        operator: (plan as any).captainName || "船长",
         status: "completed",
       },
       ...approvals.map((a: any) => {
         const node = a.node || a.step || "unknown";
         const action = a.action || a.result || "unknown";
-        const operatorName = a.operator_name || a.operatorName || a.operator || "系统";
-        const operatorRole = a.operator_role || a.operatorRole || "";
+        const operatorName = a.operatorName || a.operator || "系统";
+        const operatorRole = a.operatorRole || "";
         return {
           title: `${nodeLabels[node] || node} - ${action === "approved" ? "通过" : action === "rejected" ? "驳回" : action}`,
-          time: a.created_at || a.time,
+          time: a.createdAt || a.time,
           operator: operatorRole ? `${operatorName} (${operatorRole})` : operatorName,
           comment: a.comment,
           status:
@@ -254,7 +251,7 @@ export default function VoyageDetailPage() {
       }),
       {
         title: "出港放行",
-        time: voyage.departure_time,
+        time: voyage.departureTime,
         operator: "码头值班员",
         status: ["released", "active", "returning", "abnormal_return", "closed"].includes(voyage.status)
           ? "completed"
@@ -262,7 +259,7 @@ export default function VoyageDetailPage() {
       },
       {
         title: "出海作业",
-        time: voyage.departure_time,
+        time: voyage.departureTime,
         status: ["active", "returning", "abnormal_return", "closed"].includes(voyage.status)
           ? "completed"
           : voyage.status === "released"
@@ -274,43 +271,43 @@ export default function VoyageDetailPage() {
     if (voyage.status === "abnormal_return") {
       nodes.push({
         title: "异常返航",
-        time: voyage.actual_return_time ?? undefined,
+        time: voyage.actualReturnTime ?? undefined,
         operator: "值班员登记",
-        comment: voyage.return_deviation,
+        comment: voyage.returnDeviation,
         status: "current",
       });
     } else if (voyage.status === "returning") {
       nodes.push({
         title: "正常返航",
-        time: voyage.actual_return_time ?? undefined,
+        time: voyage.actualReturnTime ?? undefined,
         operator: "值班员登记",
         status: "current",
       });
     } else if (voyage.status === "closed") {
-      if (voyage.actual_return_time) {
+      if (voyage.actualReturnTime) {
         nodes.push({
           title: "返航归港",
-          time: voyage.actual_return_time,
+          time: voyage.actualReturnTime,
           operator: "值班员登记",
-          comment: voyage.return_deviation,
+          comment: voyage.returnDeviation,
           status: "completed",
         });
       }
-      if (voyage.return_deviation) {
+      if (voyage.returnDeviation) {
         nodes.push({
           title: "异常返航审核",
-          operator: voyage.reviewed_by ? `${voyage.reviewed_by} (监管员)` : "监管员审核",
-          comment: voyage.review_comment,
+          operator: voyage.reviewedBy ? `${voyage.reviewedBy} (监管员)` : "监管员审核",
+          comment: voyage.reviewComment,
           status: "completed",
         });
       }
       nodes.push({
         title: "航次关闭",
-        time: voyage.closed_at,
-        operator: voyage.closed_by_name
-          ? `${voyage.closed_by_name} (监管员)`
+        time: voyage.closedAt,
+        operator: voyage.closedByName
+          ? `${voyage.closedByName} (监管员)`
           : "监管员关闭",
-        comment: voyage.close_reason,
+        comment: voyage.closeReason,
         status: "completed",
       });
     } else {
@@ -335,9 +332,9 @@ export default function VoyageDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          actual_return_time: returnTime,
-          is_abnormal: isAbnormal,
-          return_deviation: isAbnormal ? deviationReason : undefined,
+          actualReturnTime: returnTime,
+          isAbnormal: isAbnormal,
+          returnDeviation: isAbnormal ? deviationReason : undefined,
         }),
       });
       if (res.ok) {
@@ -491,7 +488,7 @@ export default function VoyageDetailPage() {
             </h1>
             <p className="text-sm text-gray-400 mt-1">
               <Ship className="w-4 h-4 inline mr-1" />
-              {getShipName(voyage.ship_id)}
+              {getShipName(voyage.shipId)}
             </p>
           </div>
           <StatusBadge status={status} />
@@ -500,19 +497,19 @@ export default function VoyageDetailPage() {
           <div>
             <span className="text-xs text-gray-500">出港时间</span>
             <p className="text-sm text-gray-200 mt-0.5">
-              {voyage.departure_time || "-"}
+              {voyage.departureTime || "-"}
             </p>
           </div>
           <div>
             <span className="text-xs text-gray-500">预计返港</span>
             <p className="text-sm text-gray-200 mt-0.5">
-              {voyage.expected_return_time || "-"}
+              {voyage.expectedReturnTime || "-"}
             </p>
           </div>
           <div>
             <span className="text-xs text-gray-500">实际返港</span>
             <p className="text-sm text-gray-200 mt-0.5">
-              {voyage.actual_return_time || "-"}
+              {voyage.actualReturnTime || "-"}
             </p>
           </div>
           <div>
@@ -521,7 +518,7 @@ export default function VoyageDetailPage() {
               {plan ? plan.id : "-"}
             </p>
           </div>
-          {voyage.actual_return_time && (
+          {voyage.actualReturnTime && (
             <>
               <div>
                 <span className="text-xs text-gray-500">返港偏差</span>
@@ -539,7 +536,7 @@ export default function VoyageDetailPage() {
               <div>
                 <span className="text-xs text-gray-500">超时预警</span>
                 <p className="text-sm mt-0.5">
-                  {voyage.is_return_overdue || getReturnDeviation().isOverdue ? (
+                  {voyage.isReturnOverdue || getReturnDeviation().isOverdue ? (
                     <span className="text-danger-light flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       已超时
@@ -559,23 +556,23 @@ export default function VoyageDetailPage() {
               <div>
                 <span className="text-xs text-gray-500">关闭人</span>
                 <p className="text-sm text-gray-200 mt-0.5">
-                  {voyage.closed_by_name || "-"}
+                  {voyage.closedByName || "-"}
                 </p>
               </div>
               <div>
                 <span className="text-xs text-gray-500">关闭时间</span>
                 <p className="text-sm text-gray-200 mt-0.5">
-                  {voyage.closed_at || "-"}
+                  {voyage.closedAt || "-"}
                 </p>
               </div>
             </>
           )}
         </div>
 
-        {voyage.close_reason && (
+        {voyage.closeReason && (
           <div className="mt-4 bg-navy border border-navy-lighter rounded-lg p-3">
             <span className="text-xs text-gray-500">关闭原因</span>
-            <p className="text-sm text-gray-300 mt-1">{voyage.close_reason}</p>
+            <p className="text-sm text-gray-300 mt-1">{voyage.closeReason}</p>
           </div>
         )}
       </div>
@@ -603,33 +600,33 @@ export default function VoyageDetailPage() {
                     <span
                       className={cn(
                         "text-xs px-2 py-0.5 rounded font-medium",
-                        insp.inspection_result === "passed"
+                        insp.inspectionResult === "passed"
                           ? "bg-success/20 text-success"
-                          : insp.inspection_result === "failed"
+                          : insp.inspectionResult === "failed"
                           ? "bg-danger/20 text-danger"
                           : "bg-yellow-900/30 text-yellow-400"
                       )}
                     >
-                      {insp.inspection_result === "passed"
+                      {insp.inspectionResult === "passed"
                         ? "合格"
-                        : insp.inspection_result === "failed"
+                        : insp.inspectionResult === "failed"
                         ? "不合格"
                         : "待处理"}
                     </span>
                     <span className="text-xs text-gray-400">
-                      {insp.inspection_type === "routine"
+                      {insp.inspectionType === "routine"
                         ? "常规检查"
-                        : insp.inspection_type === "special"
+                        : insp.inspectionType === "special"
                         ? "专项检查"
                         : "抽查"}
                     </span>
                   </div>
                   <span className="text-[10px] text-gray-500">
-                    {new Date(insp.created_at || insp.createdAt).toLocaleString("zh-CN")}
+                    {new Date(insp.createdAt).toLocaleString("zh-CN")}
                   </span>
                 </div>
                 <div className="text-xs text-gray-400">
-                  检查人员: {insp.inspector_name || insp.inspectorName || "未知"}
+                  检查人员: {insp.inspectorName || "未知"}
                 </div>
                 {insp.findings && (
                   <div className="text-xs text-gray-500 mt-1">
@@ -683,7 +680,7 @@ export default function VoyageDetailPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-gray-200">
-                      {changeTypeLabels[cr.request_type]}
+                      {changeTypeLabels[cr.requestType]}
                     </span>
                     <span
                       className={cn(
@@ -705,34 +702,34 @@ export default function VoyageDetailPage() {
                         ? "已驳回"
                         : "已取消"}
                     </span>
-                    {(cr.recheck_certificate || cr.recheck_berth || cr.recheck_weather || cr.recheck_inspection) && (
+                    {(cr.recheckCertificate || cr.recheckBerth || cr.recheckWeather || cr.recheckInspection) && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning font-medium">
                         需复核
                       </span>
                     )}
                   </div>
                   <span className="text-[10px] text-gray-500">
-                    {new Date(cr.created_at).toLocaleString("zh-CN")}
+                    {new Date(cr.createdAt).toLocaleString("zh-CN")}
                   </span>
                 </div>
                 <div className="text-xs text-gray-400 mb-1">
-                  原值: {cr.old_value || "-"} → 新值: {cr.new_value}
+                  原值: {cr.oldValue || "-"} → 新值: {cr.newValue}
                 </div>
                 <div className="text-xs text-gray-500">
-                  原因: {cr.change_reason}
+                  原因: {cr.changeReason}
                 </div>
-                {(cr.recheck_certificate || cr.recheck_berth || cr.recheck_weather || cr.recheck_inspection) && (
+                {(cr.recheckCertificate || cr.recheckBerth || cr.recheckWeather || cr.recheckInspection) && (
                   <div className="flex gap-2 mt-2">
-                    {cr.recheck_certificate === 1 && (
+                    {cr.recheckCertificate === 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">证书待查</span>
                     )}
-                    {cr.recheck_berth === 1 && (
+                    {cr.recheckBerth === 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">泊位待查</span>
                     )}
-                    {cr.recheck_weather === 1 && (
+                    {cr.recheckWeather === 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">气象待查</span>
                     )}
-                    {cr.recheck_inspection === 1 && (
+                    {cr.recheckInspection === 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger-light">抽查待查</span>
                     )}
                   </div>
@@ -795,30 +792,30 @@ export default function VoyageDetailPage() {
                       <span
                         className={cn(
                           "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                          ["auto_reject", "emergency_reject"].includes(log.change_type)
+                          ["auto_reject", "emergency_reject"].includes(log.changeType)
                             ? "bg-danger/20 text-danger"
-                            : log.change_type === "manual_release"
+                            : log.changeType === "manual_release"
                             ? "bg-port/20 text-port"
-                            : ["revoke_release", "control_recall"].includes(log.change_type)
+                            : ["revoke_release", "control_recall"].includes(log.changeType)
                             ? "bg-purple-600/20 text-purple-400"
                             : "bg-yellow-600/20 text-yellow-400"
                         )}
                       >
-                        {changeTypeLabelsLocal[log.change_type] || log.change_type}
+                        {changeTypeLabelsLocal[log.changeType] || log.changeType}
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        {log.old_status} → {log.new_status}
+                        {log.oldStatus} → {log.newStatus}
                       </span>
                     </div>
                     <span className="text-[10px] text-gray-600">
-                      {log.operator_name || log.operator_role} ·{" "}
-                      {new Date(log.created_at).toLocaleString("zh-CN")}
+                      {log.operatorName || log.operatorRole} ·{" "}
+                      {new Date(log.createdAt).toLocaleString("zh-CN")}
                     </span>
                   </div>
                   <div className="text-xs text-gray-500 mt-1">{log.reason}</div>
-                  {log.control_title && (
+                  {log.controlTitle && (
                     <div className="text-[10px] text-warning mt-1">
-                      关联管控: {log.control_title}
+                      关联管控: {log.controlTitle}
                     </div>
                   )}
                 </div>
@@ -874,11 +871,11 @@ export default function VoyageDetailPage() {
             <AlertTriangle className="w-4 h-4" />
             异常返航审核
           </h2>
-          {voyage.return_deviation && (
+          {voyage.returnDeviation && (
             <div className="bg-navy-lighter/50 rounded-lg p-4 mb-4">
               <span className="text-xs text-gray-500">偏离原因</span>
               <p className="text-sm text-gray-200 mt-1">
-                {voyage.return_deviation}
+                {voyage.returnDeviation}
               </p>
             </div>
           )}
@@ -1121,16 +1118,16 @@ export default function VoyageDetailPage() {
         {selectedChangeRequest && (
           <div className="space-y-4">
             <div className="bg-navy-lighter/50 border border-navy-lighter rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-1">
-                变更类型: {changeTypeLabels[selectedChangeRequest.request_type]}
+                <div className="text-xs text-gray-400 mb-1">
+                  变更类型: {changeTypeLabels[selectedChangeRequest.requestType]}
+                </div>
+                <div className="text-xs text-gray-300">
+                  原值: {selectedChangeRequest.oldValue || "-"} → 新值: {selectedChangeRequest.newValue}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  原因: {selectedChangeRequest.changeReason}
+                </div>
               </div>
-              <div className="text-xs text-gray-300">
-                原值: {selectedChangeRequest.old_value || "-"} → 新值: {selectedChangeRequest.new_value}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                原因: {selectedChangeRequest.change_reason}
-              </div>
-            </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">审核意见</label>
               <textarea

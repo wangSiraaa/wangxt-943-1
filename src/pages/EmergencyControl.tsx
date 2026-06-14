@@ -97,13 +97,13 @@ export default function EmergencyControlPage() {
     .filter((c) =>
       searchQuery
         ? c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.affected_area?.toLowerCase().includes(searchQuery.toLowerCase())
+          c.affectedArea?.toLowerCase().includes(searchQuery.toLowerCase())
         : true
     )
     .sort((a, b) => {
       if (a.status === "active" && b.status !== "active") return -1;
       if (a.status !== "active" && b.status === "active") return 1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   const activeControls = filteredControls.filter((c) => c.status === "active");
@@ -147,7 +147,7 @@ export default function EmergencyControlPage() {
   };
 
   const ControlCard = ({ control }: { control: EmergencyControl }) => {
-    const TypeIcon = controlTypeIcons[control.control_type];
+    const TypeIcon = controlTypeIcons[control.controlType];
     return (
       <div
         className="bg-navy-light rounded-xl border border-navy-lighter p-5 cursor-pointer hover:border-nautical/50 transition-all group"
@@ -158,7 +158,7 @@ export default function EmergencyControlPage() {
             <div
               className={cn(
                 "w-10 h-10 rounded-lg flex items-center justify-center",
-                riskLevelColors[control.risk_level]
+                riskLevelColors[control.riskLevel]
               )}
             >
               <TypeIcon className="w-5 h-5" />
@@ -168,7 +168,7 @@ export default function EmergencyControlPage() {
                 {control.title}
               </h3>
               <p className="text-sm text-gray-400">
-                {controlTypeLabels[control.control_type]}
+                {controlTypeLabels[control.controlType]}
               </p>
             </div>
           </div>
@@ -186,10 +186,10 @@ export default function EmergencyControlPage() {
           {control.description}
         </p>
 
-        {control.affected_area && (
+        {control.affectedArea && (
           <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
             <MapPin className="w-4 h-4 text-nautical-light" />
-            <span>{control.affected_area}</span>
+            <span>{control.affectedArea}</span>
           </div>
         )}
 
@@ -198,23 +198,23 @@ export default function EmergencyControlPage() {
             <div className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
               <span>
-                {new Date(control.start_time).toLocaleDateString("zh-CN")}
+                {new Date(control.startTime).toLocaleDateString("zh-CN")}
               </span>
             </div>
-            {control.affected_plans_count !== undefined && (
+            {control.affectedPlansCount !== undefined && (
               <div className="flex items-center gap-1">
                 <AlertOctagon className="w-4 h-4 text-warning" />
-                <span>影响 {control.affected_plans_count} 个计划</span>
+                <span>影响 {control.affectedPlansCount} 个计划</span>
               </div>
             )}
           </div>
           <span
             className={cn(
               "px-2 py-0.5 text-xs rounded border",
-              riskLevelColors[control.risk_level]
+              riskLevelColors[control.riskLevel]
             )}
           >
-            {riskLevelLabels[control.risk_level]}
+            {riskLevelLabels[control.riskLevel]}
           </span>
         </div>
 

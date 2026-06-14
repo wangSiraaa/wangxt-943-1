@@ -8,44 +8,52 @@ export interface Ship {
   tonnage: number;
   length: number;
   status: string;
-  current_voyage_id: string | null;
-  created_at: string;
-  updated_at: string;
+  currentVoyageId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Plan {
   id: string;
-  ship_id: string;
-  captain_id: string;
-  voyage_id: string | null;
+  shipId: string;
+  captainId: string;
+  voyageId: string | null;
   status: string;
-  departure_time: string;
-  expected_return_time: string;
+  departureTime: string;
+  expectedReturnTime: string;
   route: string;
-  route_risk_level: string;
-  danger_goods_declared: number;
-  danger_goods_detail: string | null;
-  fuel_remaining: number;
-  berth_id: string | null;
-  rejection_reason: string | null;
-  created_at: string;
-  updated_at: string;
-  crew_ids?: string[];
+  routeRiskLevel: string;
+  dangerGoodsDeclared: number;
+  dangerGoodsDetail: string | null;
+  fuelRemaining: number;
+  berthId: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  crewIds?: string[];
+  emergencyControlId?: string | null;
+  lastStatusChangeReason?: string | null;
+  changeRequestId?: string | null;
+  shipName?: string;
 }
 
 export interface Voyage {
   id: string;
-  plan_id: string;
-  ship_id: string;
+  planId: string;
+  shipId: string;
   status: string;
-  departure_time: string;
-  expected_return_time: string;
-  actual_return_time: string | null;
-  return_deviation: string | null;
-  close_reason: string | null;
-  closed_by: string | null;
-  closed_at: string | null;
-  created_at: string;
+  departureTime: string;
+  expectedReturnTime: string;
+  actualReturnTime: string | null;
+  returnDeviation: string | null;
+  closeReason: string | null;
+  closedBy: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  emergencyControlId?: string | null;
+  lastStatusChangeReason?: string | null;
+  changeRequestId?: string | null;
+  shipName?: string;
 }
 
 export interface AlertItem {
@@ -54,22 +62,22 @@ export interface AlertItem {
   level: string;
   title: string;
   message: string;
-  related_voyage_id: string | null;
-  related_ship_id: string | null;
-  is_resolved: number;
-  created_at: string;
+  relatedVoyageId: string | null;
+  relatedShipId: string | null;
+  isResolved: boolean;
+  createdAt: string;
 }
 
 export interface CrewMember {
   id: string;
   name: string;
   role: string;
-  qualification_type: string;
-  qualification_expire_date: string;
-  is_blacklisted: number;
-  ship_id: string | null;
-  created_at: string;
-  updated_at: string;
+  qualificationType: string;
+  qualificationExpireDate: string;
+  isBlacklisted: boolean;
+  shipId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Berth {
@@ -120,81 +128,82 @@ export interface TrendData {
 
 export interface EmergencyControl {
   id: string;
-  control_type: string;
+  controlType: string;
   title: string;
   description: string | null;
-  affected_area: string | null;
-  start_time: string;
-  end_time: string;
-  risk_level: string;
+  affectedArea: string | null;
+  startTime: string;
+  endTime: string;
+  riskLevel: string;
   status: string;
-  created_by: string;
-  created_by_name?: string;
-  ended_by: string | null;
-  ended_by_name?: string | null;
-  ended_at: string | null;
-  created_at: string;
-  updated_at: string;
-  affected_plans?: any[];
-  affected_voyages?: any[];
-  status_logs?: StatusChangeLog[];
+  createdBy: string;
+  createdByName?: string;
+  endedBy: string | null;
+  endedByName?: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  affectedPlans?: Plan[];
+  affectedVoyages?: Voyage[];
+  statusLogs?: StatusChangeLog[];
+  affectedPlansCount?: number;
 }
 
 export interface VoyageChangeRequest {
   id: string;
-  plan_id: string;
-  voyage_id: string | null;
-  request_type: 'route_change' | 'crew_change' | 'early_return';
-  old_value: string | null;
-  new_value: string;
-  change_reason: string;
+  planId: string;
+  voyageId: string | null;
+  requestType: 'route_change' | 'crew_change' | 'early_return';
+  oldValue: string | null;
+  newValue: string;
+  changeReason: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
-  requested_by: string;
-  requested_by_name?: string;
-  reviewed_by: string | null;
-  reviewed_by_name?: string | null;
-  review_comment: string | null;
-  reviewed_at: string | null;
-  requires_recheck: number;
-  recheck_certificate: number;
-  recheck_berth: number;
-  recheck_weather: number;
-  recheck_inspection: number;
-  ship_name?: string;
-  created_at: string;
-  updated_at: string;
+  requestedBy: string;
+  requestedByName?: string;
+  reviewedBy: string | null;
+  reviewedByName?: string | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
+  requiresRecheck: number;
+  recheckCertificate: number;
+  recheckBerth: number;
+  recheckWeather: number;
+  recheckInspection: number;
+  shipName?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StatusChangeLog {
   id: string;
-  plan_id: string | null;
-  voyage_id: string | null;
-  old_status: string;
-  new_status: string;
-  change_type: string;
+  planId: string | null;
+  voyageId: string | null;
+  oldStatus: string;
+  newStatus: string;
+  changeType: string;
   reason: string;
-  operator_id: string;
-  operator_name?: string;
-  operator_role: string;
-  emergency_control_id: string | null;
-  control_title?: string;
+  operatorId: string;
+  operatorName?: string;
+  operatorRole: string;
+  emergencyControlId: string | null;
+  controlTitle?: string;
   metadata: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface RiskAggregation {
-  critical: any[];
-  warning: any[];
-  info: any[];
-  active_controls: EmergencyControl[];
-  pending_change_requests: VoyageChangeRequest[];
+  critical: Plan[];
+  warning: Plan[];
+  info: Plan[];
+  activeControls: EmergencyControl[];
+  pendingChangeRequests: VoyageChangeRequest[];
   summary: {
-    total_affected: number;
-    critical_count: number;
-    warning_count: number;
-    info_count: number;
-    active_controls_count: number;
-    pending_change_requests_count: number;
+    totalAffected: number;
+    criticalCount: number;
+    warningCount: number;
+    infoCount: number;
+    activeControlsCount: number;
+    pendingChangeRequestsCount: number;
   };
 }
 
@@ -210,8 +219,10 @@ interface DataState {
   compliance: ComplianceStats | null;
   trends: TrendData[];
   emergencyControls: EmergencyControl[];
+  activeEmergencyControls: EmergencyControl[];
   changeRequests: VoyageChangeRequest[];
   riskAggregation: RiskAggregation | null;
+  statusLogs: StatusChangeLog[];
   isLoading: boolean;
   fetchShips: () => Promise<void>;
   fetchPlans: () => Promise<void>;
@@ -224,8 +235,12 @@ interface DataState {
   fetchCompliance: () => Promise<void>;
   fetchTrends: () => Promise<void>;
   fetchEmergencyControls: () => Promise<void>;
+  fetchActiveEmergencyControls: () => Promise<void>;
+  createEmergencyControl: (data: Record<string, unknown>) => Promise<EmergencyControl | null>;
+  endEmergencyControl: (id: string, reason: string) => Promise<boolean>;
   fetchChangeRequests: () => Promise<void>;
   fetchRiskAggregation: () => Promise<void>;
+  fetchStatusChangeLogs: (planId: string) => Promise<StatusChangeLog[]>;
 }
 
 export const useDataStore = create<DataState>((set) => ({
@@ -240,8 +255,10 @@ export const useDataStore = create<DataState>((set) => ({
   compliance: null,
   trends: [],
   emergencyControls: [],
+  activeEmergencyControls: [],
   changeRequests: [],
   riskAggregation: null,
+  statusLogs: [],
   isLoading: false,
 
   fetchShips: async () => {
@@ -316,9 +333,52 @@ export const useDataStore = create<DataState>((set) => ({
 
   fetchEmergencyControls: async () => {
     try {
-      const emergencyControls = await apiRequest<EmergencyControl[]>("/api/emergency?status=active");
+      const emergencyControls = await apiRequest<EmergencyControl[]>("/api/emergency");
       set({ emergencyControls });
     } catch { console.error("获取应急管控数据失败"); }
+  },
+
+  fetchActiveEmergencyControls: async () => {
+    try {
+      const activeEmergencyControls = await apiRequest<EmergencyControl[]>("/api/emergency/active");
+      set({ activeEmergencyControls });
+    } catch { console.error("获取活跃应急管控失败"); }
+  },
+
+  createEmergencyControl: async (data: Record<string, unknown>) => {
+    try {
+      const body = {
+        controlType: data.controlType,
+        title: data.title,
+        description: data.description,
+        affectedArea: data.affectedArea,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        riskLevel: data.riskLevel,
+        autoProcess: true,
+      };
+      const result = await apiRequest<EmergencyControl>("/api/emergency", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return result;
+    } catch (e) {
+      console.error("创建应急管控失败", e);
+      return null;
+    }
+  },
+
+  endEmergencyControl: async (id: string, reason: string) => {
+    try {
+      await apiRequest(`/api/emergency/${id}/end`, {
+        method: "POST",
+        body: JSON.stringify({ endReason: reason }),
+      });
+      return true;
+    } catch (e) {
+      console.error("结束应急管控失败", e);
+      return false;
+    }
   },
 
   fetchChangeRequests: async () => {
@@ -333,5 +393,16 @@ export const useDataStore = create<DataState>((set) => ({
       const riskAggregation = await apiRequest<RiskAggregation>("/api/emergency/risk-aggregation");
       set({ riskAggregation });
     } catch { console.error("获取风险聚合数据失败"); }
+  },
+
+  fetchStatusChangeLogs: async (planId: string) => {
+    try {
+      const logs = await apiRequest<StatusChangeLog[]>(`/api/emergency/status-logs/${planId}`);
+      set({ statusLogs: logs });
+      return logs;
+    } catch {
+      console.error("获取状态变更日志失败");
+      return [];
+    }
   },
 }));

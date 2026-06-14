@@ -224,7 +224,8 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const status = req.query.status as string
     const controlType = req.query.controlType as string
     
-    let sql = `SELECT ec.*, u.name as created_by_name, u2.name as ended_by_name 
+    let sql = `SELECT ec.*, u.name as created_by_name, u2.name as ended_by_name,
+               (SELECT COUNT(*) FROM plans p WHERE p.emergency_control_id = ec.id) as affected_plans_count
                FROM emergency_controls ec 
                LEFT JOIN users u ON ec.created_by = u.id
                LEFT JOIN users u2 ON ec.ended_by = u2.id`
@@ -256,7 +257,8 @@ router.get('/active', async (_req: Request, res: Response): Promise<void> => {
     const db = await getDb()
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
     const controls = all(db,
-      `SELECT ec.*, u.name as created_by_name 
+      `SELECT ec.*, u.name as created_by_name,
+              (SELECT COUNT(*) FROM plans p WHERE p.emergency_control_id = ec.id) as affected_plans_count
        FROM emergency_controls ec 
        LEFT JOIN users u ON ec.created_by = u.id
        WHERE ec.status = 'active' 

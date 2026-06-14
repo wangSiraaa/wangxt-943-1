@@ -8,32 +8,32 @@ import { cn } from "@/lib/utils";
 const ROLE_CAPTAIN = "captain";
 
 interface FormData {
-  ship_id: string;
-  departure_time: string;
-  expected_return_time: string;
+  shipId: string;
+  departureTime: string;
+  expectedReturnTime: string;
   route: string;
-  route_risk_level: "low" | "medium" | "high";
-  danger_goods_declared: number;
-  danger_goods_detail: string;
-  fuel_remaining: number;
-  berth_id: string;
-  crew_ids: string[];
+  routeRiskLevel: "low" | "medium" | "high";
+  dangerGoodsDeclared: number;
+  dangerGoodsDetail: string;
+  fuelRemaining: number;
+  berthId: string;
+  crewIds: string[];
 }
 
 const initialForm: FormData = {
-  ship_id: "",
-  departure_time: "",
-  expected_return_time: "",
+  shipId: "",
+  departureTime: "",
+  expectedReturnTime: "",
   route: "",
-  route_risk_level: "low",
-  danger_goods_declared: 0,
-  danger_goods_detail: "",
-  fuel_remaining: 80,
-  berth_id: "",
-  crew_ids: [],
+  routeRiskLevel: "low",
+  dangerGoodsDeclared: 0,
+  dangerGoodsDetail: "",
+  fuelRemaining: 80,
+  berthId: "",
+  crewIds: [],
 };
 
-const riskOptions: { value: FormData["route_risk_level"]; label: string; color: string }[] = [
+const riskOptions: { value: FormData["routeRiskLevel"]; label: string; color: string }[] = [
   { value: "low", label: "低风险", color: "text-port" },
   { value: "medium", label: "中风险", color: "text-warning" },
   { value: "high", label: "高风险", color: "text-danger" },
@@ -82,25 +82,25 @@ export default function PlanCreate() {
     );
   }
 
-  const filteredCrew = form.ship_id
-    ? crew.filter((c) => c.ship_id === form.ship_id)
+  const filteredCrew = form.shipId
+    ? crew.filter((c) => c.shipId === form.shipId)
     : crew;
 
   const availableBerths = berths.filter((b) => b.status === "available");
 
   const update = <K extends keyof FormData>(key: K, value: FormData[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    if (key === "ship_id") {
-      setForm((prev) => ({ ...prev, crew_ids: [] }));
+    if (key === "shipId") {
+      setForm((prev) => ({ ...prev, crewIds: [] }));
     }
   };
 
   const toggleCrew = (crewId: string) => {
     setForm((prev) => ({
       ...prev,
-      crew_ids: prev.crew_ids.includes(crewId)
-        ? prev.crew_ids.filter((id) => id !== crewId)
-        : [...prev.crew_ids, crewId],
+      crewIds: prev.crewIds.includes(crewId)
+        ? prev.crewIds.filter((id) => id !== crewId)
+        : [...prev.crewIds, crewId],
     }));
   };
 
@@ -108,12 +108,12 @@ export default function PlanCreate() {
     e.preventDefault();
     setError("");
 
-    if (!form.ship_id || !form.departure_time || !form.expected_return_time) {
+    if (!form.shipId || !form.departureTime || !form.expectedReturnTime) {
       setError("请填写必填字段：船舶、计划出港时间、预计返港时间");
       return;
     }
 
-    if (form.danger_goods_declared && !form.danger_goods_detail) {
+    if (form.dangerGoodsDeclared && !form.dangerGoodsDetail) {
       setError("请填写危险品申报详情");
       return;
     }
@@ -173,8 +173,8 @@ export default function PlanCreate() {
                   船舶 <span className="text-danger">*</span>
                 </label>
                 <select
-                  value={form.ship_id}
-                  onChange={(e) => update("ship_id", e.target.value)}
+                  value={form.shipId}
+                  onChange={(e) => update("shipId", e.target.value)}
                   className={inputClass}
                 >
                   <option value="">选择船舶</option>
@@ -191,8 +191,8 @@ export default function PlanCreate() {
                 </label>
                 <input
                   type="datetime-local"
-                  value={form.departure_time}
-                  onChange={(e) => update("departure_time", e.target.value)}
+                  value={form.departureTime}
+                  onChange={(e) => update("departureTime", e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -202,8 +202,8 @@ export default function PlanCreate() {
                 </label>
                 <input
                   type="datetime-local"
-                  value={form.expected_return_time}
-                  onChange={(e) => update("expected_return_time", e.target.value)}
+                  value={form.expectedReturnTime}
+                  onChange={(e) => update("expectedReturnTime", e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -230,7 +230,7 @@ export default function PlanCreate() {
                   key={opt.value}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors",
-                    form.route_risk_level === opt.value
+                    form.routeRiskLevel === opt.value
                       ? "bg-navy-lighter border-nautical"
                       : "bg-navy border-navy-lighter hover:border-navy-lighter/80"
                   )}
@@ -239,14 +239,14 @@ export default function PlanCreate() {
                     type="radio"
                     name="riskLevel"
                     value={opt.value}
-                    checked={form.route_risk_level === opt.value}
-                    onChange={() => update("route_risk_level", opt.value)}
+                    checked={form.routeRiskLevel === opt.value}
+                    onChange={() => update("routeRiskLevel", opt.value)}
                     className="sr-only"
                   />
                   <span
                     className={cn(
                       "w-3 h-3 rounded-full border-2",
-                      form.route_risk_level === opt.value
+                      form.routeRiskLevel === opt.value
                         ? `${opt.color} border-current`
                         : "border-gray-500"
                     )}
@@ -254,7 +254,7 @@ export default function PlanCreate() {
                   <span
                     className={cn(
                       "text-sm",
-                      form.route_risk_level === opt.value
+                      form.routeRiskLevel === opt.value
                         ? opt.color
                         : "text-gray-400"
                     )}
@@ -273,12 +273,12 @@ export default function PlanCreate() {
                 <div
                   className={cn(
                     "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
-                    form.danger_goods_declared
+                    form.dangerGoodsDeclared
                       ? "bg-warning border-warning"
                       : "border-gray-500"
                   )}
                 >
-                  {form.danger_goods_declared > 0 && (
+                  {form.dangerGoodsDeclared > 0 && (
                     <svg
                       className="w-3 h-3 text-white"
                       fill="none"
@@ -296,9 +296,9 @@ export default function PlanCreate() {
                 </div>
                 <input
                   type="checkbox"
-                  checked={!!form.danger_goods_declared}
+                  checked={!!form.dangerGoodsDeclared}
                   onChange={(e) =>
-                    update("danger_goods_declared", e.target.checked ? 1 : 0)
+                    update("dangerGoodsDeclared", e.target.checked ? 1 : 0)
                   }
                   className="sr-only"
                 />
@@ -306,11 +306,11 @@ export default function PlanCreate() {
                   携带危险品出港
                 </span>
               </label>
-              {form.danger_goods_declared > 0 && (
+              {form.dangerGoodsDeclared > 0 && (
                 <textarea
-                  value={form.danger_goods_detail}
+                  value={form.dangerGoodsDetail}
                   onChange={(e) =>
-                    update("danger_goods_detail", e.target.value)
+                    update("dangerGoodsDetail", e.target.value)
                   }
                   placeholder="请详细描述危险品种类、数量及防护措施"
                   rows={3}
@@ -330,10 +330,10 @@ export default function PlanCreate() {
                     type="number"
                     min={0}
                     max={100}
-                    value={form.fuel_remaining}
-                    onChange={(e) =>
-                      update("fuel_remaining", Number(e.target.value))
-                    }
+                    value={form.fuelRemaining}
+                  onChange={(e) =>
+                    update("fuelRemaining", Number(e.target.value))
+                  }
                     className={cn(inputClass, "pr-8")}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
@@ -344,8 +344,8 @@ export default function PlanCreate() {
               <div>
                 <label className={labelClass}>泊位选择</label>
                 <select
-                  value={form.berth_id}
-                  onChange={(e) => update("berth_id", e.target.value)}
+                  value={form.berthId}
+                  onChange={(e) => update("berthId", e.target.value)}
                   className={inputClass}
                 >
                   <option value="">选择泊位</option>
@@ -368,26 +368,26 @@ export default function PlanCreate() {
                     key={c.id}
                     className={cn(
                       "flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors",
-                      form.crew_ids.includes(c.id)
+                      form.crewIds.includes(c.id)
                         ? "bg-navy-lighter border-nautical"
                         : "bg-navy border-navy-lighter hover:border-navy-lighter/80"
                     )}
                   >
                     <input
                       type="checkbox"
-                      checked={form.crew_ids.includes(c.id)}
+                      checked={form.crewIds.includes(c.id)}
                       onChange={() => toggleCrew(c.id)}
                       className="sr-only"
                     />
                     <div
                       className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center",
-                        form.crew_ids.includes(c.id)
+                        form.crewIds.includes(c.id)
                           ? "bg-nautical border-nautical"
                           : "border-gray-500"
                       )}
                     >
-                      {form.crew_ids.includes(c.id) && (
+                      {form.crewIds.includes(c.id) && (
                         <svg
                           className="w-2.5 h-2.5 text-white"
                           fill="none"
@@ -414,7 +414,7 @@ export default function PlanCreate() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                {form.ship_id
+                {form.shipId
                   ? "该船舶暂无船员记录"
                   : "请先选择船舶以加载船员列表"}
               </p>

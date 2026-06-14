@@ -35,7 +35,7 @@ export default function AlertBanner() {
                 )}
               >
                 {alert.title} — {alert.message}
-                <span className="ml-2 opacity-60">{alert.created_at}</span>
+                <span className="ml-2 opacity-60">{alert.createdAt}</span>
               </span>
             ))}
           </div>
