@@ -40,11 +40,11 @@ interface ApprovalRecord {
 
 interface RiskChangeLog {
   id: string;
-  oldRiskLevel: string;
-  newRiskLevel: string;
-  changeReason: string;
-  changedByName: string;
-  createdAt: string;
+  old_risk_level: string;
+  new_risk_level: string;
+  change_reason: string;
+  changed_by_name?: string;
+  created_at: string;
 }
 
 const riskLabels: Record<string, string> = {
@@ -494,9 +494,9 @@ export default function PlanDetail() {
                     </span>
                   </div>
                   <div className="text-xs text-gray-400">
-                    <span className="text-gray-300">{log.changed_by_name || log.changedByName || "未知用户"}</span>
+                    <span className="text-gray-300">{log.changed_by_name || "未知用户"}</span>
                     <span className="mx-1">•</span>
-                    <span>变更原因: {log.change_reason || log.changeReason}</span>
+                    <span>变更原因: {log.change_reason}</span>
                   </div>
                 </div>
               ))}
